@@ -1,18 +1,22 @@
+#' @importFrom lubridate ymd ym ymd_hm year month day hour minute
+#' @importFrom data.table is.data.table as.data.table data.table setnames setkeyv setcolorder setorderv melt
+NULL
+
 #' Get Date Columns from Data
 #'
-#' @Description:
+#' @description
 #'   This function scans a data.table or data.frame and identifies which columns
 #'   have names that represent dates. Date columns are detected based on whether their names can be
 #'   parsed as dates in one of the formats "YYYY-MM-DD", "YYYY-MM", or "YYYY". The function returns
 #'   a character vector of the names of these date columns.
 #'
-#' @Input:
+#' @param:
 #'   - dt: A data.table or data.frame whose column names may include dates.
 #'
-#' @Output:
+#' @return:
 #'   - A character vector containing the names of the columns that are recognized as date columns.
 #'
-#' @Examples:
+#' @examples
 #'   # Suppose dt is a data.table with columns "poly_id", "trans_var", "2017-01-01", "2017-01-02", ...
 #'   date_cols <- get_date_cols(dt)
 get_date_cols <- function(dt) {
@@ -34,20 +38,20 @@ get_date_cols <- function(dt) {
 
 #' Get Temporal Resolution from Date Column Names
 #'
-#' @Description:
+#' @description
 #'   This function determines the temporal resolution of a set of date column names. It expects a
 #'   character vector of date column names, each formatted as "YYYY", "YYYY-MM", or "YYYY-MM-DD".
 #'   The function first checks that all date column names share the same number of characters.
 #'   If they do, it returns the temporal resolution in the format "yearly", "monthly", or "daily".
 #'   If not, it stops with an error.
 #'
-#' @Input:
+#' @param:
 #'   - date_cols: A character vector of date column names.
 #'
-#' @Output:
+#' @return:
 #'   - A character string representing the temporal resolution: "yearly", "monthly", or "daily".
 #'
-#' @Examples:
+#' @examples
 #'   # Given a vector of date column names:
 #'   date_cols <- c("2017", "2018", "2019")
 #'   res <- get_temp_res(date_cols)  # returns "yearly"
@@ -168,7 +172,7 @@ add_time_cols <- function(dt, date_col = "date", temp_res = "daily",
 
 #' Reshape Wide Data to Long Format by Processing Each trans_var Separately with Optional Time Columns
 #'
-#' @Description:
+#' @description
 #'   This function reshapes a wide-format data.table (or data.frame) into a long-format data.table
 #'   by processing each unique trans_var separately and optimizing the merge operation using keys.
 #'   It first identifies the date columns and their temporal resolution using the get_date_cols and get_temp_res functions.
@@ -178,7 +182,7 @@ add_time_cols <- function(dt, date_col = "date", temp_res = "daily",
 #'
 #'   Optionally, time columns (year, month, day) are added based on the detected temporal resolution.
 #'
-#' @Input:
+#' @param:
 #'   - wide_dt: A wide-format data.table or data.frame containing identifier columns, a trans_var column,
 #'              date columns, and possibly other columns.
 #'   - id_cols: A character vector of identifier column names that must always be retained.
@@ -187,11 +191,11 @@ add_time_cols <- function(dt, date_col = "date", temp_res = "daily",
 #'                Default is "trans_var".
 #'   - add_time_columns: Logical. If TRUE (default), additional time columns are added based on the detected temporal resolution.
 #'
-#' @Output:
+#' @return:
 #'   - A long-format data.table that contains the identifier columns, a "date" column, one column per unique trans_var
 #'     containing the melted data, and optionally additional time columns.
 #'
-#' @Examples:
+#' @examples
 #'   # Suppose wide_dt is a data.table with columns "poly_id", "trans_type", "trans_var",
 #'   # and date columns like "2017-01-01", "2017-01-02", etc.
 #'   long_dt <- reshape_to_long(wide_dt)

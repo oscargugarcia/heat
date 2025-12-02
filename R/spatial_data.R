@@ -1,18 +1,79 @@
+#' @importFrom terra rast res ext
+#' @importFrom sf st_read st_write st_crs `st_crs<-` st_transform st_geometry `st_geometry<-` st_drop_geometry st_coordinates st_geometry_type st_buffer st_is_longlat st_is_empty st_is_valid st_make_valid st_wrap_dateline st_as_sfc st_as_sf st_sfc st_sf st_polygon st_point st_centroid
+#' @importFrom arrow read_parquet
+#' @importFrom dplyr select mutate relocate
+NULL
+
+
+#' Check and Validate Raster Layer Names
+#'
+#' @description
+#' This helper function checks that a raster has valid layer names in date format.
+#' If layer names are not valid dates, it attempts to use the time dimension of the raster.
+#'
+#' @param raster A SpatRaster object to validate
+#' @param raster_name A character string describing the raster (for error messages)
+#'
+#' @return The validated raster with properly formatted layer names
+#'
+#' @keywords internal
+check_raster_layers <- function(raster, raster_name = "raster") {
+  
+  if (!inherits(raster, "SpatRaster")) {
+    stop(raster_name, " must be a SpatRaster object")
+  }
+  
+  if (nlyr(raster) == 0) {
+    stop(raster_name, " has no layers")
+  }
+  
+  # Get layer names and check whether they are in date format
+  layer_names <- names(raster)
+  
+  if (is.null(layer_names) || all(layer_names == "")) {
+    stop(raster_name, " layers have no names. Layer names must be in date format (e.g., 'YYYY-MM-DD')")
+  }
+  
+  # Try to determine temporal resolution
+  temp_res <- tryCatch({
+    get_temp_res(layer_names)
+  }, error = function(e) {
+    if (grepl("Multiple temporal resolutions detected", e$message)) {
+      # Try using the time dimension of the raster
+      time_dim <- time(raster)
+      if (!is.null(time_dim) && length(time_dim) > 0) {
+        message("The layer names of ", raster_name, " do not appear to be in a standard time format (e.g., 'YYYY-MM-DD'). ",
+                "Attempting to use time dimension of the raster")
+        names(raster) <- as.character(time_dim)
+        return(raster)
+      } else {
+        stop(e$message)
+      }
+    } else {
+      stop(e$message)
+    }
+  })
+  
+  message("✓ ", raster_name, " validated successfully: ", nlyr(raster), " layers")
+  return(raster)
+}
+
+
 #' Get Valid Raster Files
 #'
-#' @Description:
+#' @description
 #'   This function searches for raster files with specific extensions in a given folder,
 #'   checking whether they can be read into R. It returns a list of accessible raster files 
 #'   while printing warnings for any files that cannot be read.
 #'
-#' @Input:
+#' @param:
 #'   - path: A character string specifying the path to the folder containing raster files.
 #'   - pattern: A character string specifying the file pattern to match (default is "\\.tif$|\\.nc$").
 #'
-#' @Output:
+#' @return:
 #'   - A character vector containing paths to the valid raster files that can be read.
 #'
-#' @Examples:
+#' @examples
 #'   valid_rasters <- get_valid_raster_files(paths$path_env_rast)
 get_valid_raster_files <- function(path, pattern = "\\.tif$|\\.nc$") {
   # Identify all raster files in the folder with full paths
@@ -108,24 +169,29 @@ filter_read_rast <- function(path, year_range = NULL) {
 #'
 #' @description
 #' Reads spatial data from a file (Parquet, GPKG, Shapefile, GeoJSON, FGB, RDS), converts the geometry 
-#' to an sf object, and ensures the CRS is set to WGS84 (EPSG:4326). If the geometry column is named "geom", 
-#' it is renamed to "geometry". For point geometries, the points are retained as-is and will be processed
-#' using optimized point extraction methods. For polygon geometries, st_make_valid() is applied to ensure 
-#' validity. Additionally, the function checks for empty or invalid geometries and warns the user if any 
-#' are found, listing the corresponding row numbers. Empty geometries are removed.
+#' to an sf object. By default, validates and cleans the geometry using `check_spatial_file()`, which
+#' ensures CRS is WGS84 (EPSG:4326), renames "geom" to "geometry", removes empty geometries, applies
+#' st_make_valid() to polygons, and performs other validation steps. Validation can be disabled by
+#' setting `validate = FALSE`.
 #'
 #' @param file_path A string specifying the path to the spatial data file.
+#' @param validate Logical; if TRUE (default), validates and cleans the geometry using `check_spatial_file()`.
 #'
-#' @return An sf object with geometry in WGS84 (EPSG:4326) and a geometry column named "geometry".
+#' @return An sf object with geometry. If validated, will be in WGS84 (EPSG:4326) with cleaned geometries.
 #'   Point and polygon geometries are both supported and processed accordingly.
 #'
 #' @examples
 #' \dontrun{
+#'   # Read and validate (default)
 #'   polygons <- read_spatial_file("data/polygons/CONUS_consistent_counties.gpkg")
+#'   
+#'   # Read without validation
+#'   polygons_raw <- read_spatial_file("data/polygons/polygons.gpkg", validate = FALSE)
+#'   
 #'   points <- read_spatial_file("data/points/sampling_points.gpkg")
 #'   rds_data <- read_spatial_file("data/spatial_data.rds")
 #' }
-read_spatial_file <- function(file_path) {
+read_spatial_file <- function(file_path, validate = TRUE) {
   if (!file.exists(file_path)) {
     stop("Error: File does not exist - ", file_path)
   }
@@ -166,153 +232,143 @@ read_spatial_file <- function(file_path) {
   } else {
     stop("Error: Unsupported file format - ", file_ext)
   }
-  
-  # # Create a row_id column
-  # polygons$row_id <- 1:nrow(polygons) 
-  # polygons <- relocate(polygons, row_id)
-  
+
+  # Optionally validate and clean using check_spatial_file()
+  if (validate) {
+    polygons <- check_spatial_file(polygons, source = file_path)
+  }
+
+  return(polygons)
+}
+
+
+#' Check and Clean an sf Spatial Object
+#'
+#' @description
+#' This function performs validation and cleaning on an sf object. It sets or transforms the CRS
+#' to WGS84 if needed, renames geometry columns, removes empty geometries, reports mixed geometry
+#' types, applies `st_make_valid()` to polygons, wraps dateline crossings, and issues final validity
+#' checks. Designed to be used both after reading files and when the user supplies an sf object
+#' directly.
+#'
+#' @param polygons An sf object to validate and clean.
+#' @param source Optional character string describing the source (e.g., file path) for messaging.
+#'
+#' @return A cleaned and validated sf object with geometry in WGS84 (EPSG:4326).
+#' @keywords internal
+check_spatial_file <- function(polygons, source = NULL) {
+  # Provide a short source label for messages
+  src <- if (!is.null(source)) paste0(source, ": ") else ""
+
   # Check the original CRS
   original_crs <- st_crs(polygons)
   original_epsg <- st_crs(polygons)$epsg
-  
+
   # If CRS is NA, assume it's WGS 84 (EPSG:4326)
   if (is.na(original_crs)) {
-    warning("The CRS is missing in spatial file ", file_path, "\n  Setting the CRS to WGS 84 (EPSG:4326).")
-    st_crs(polygons) <- 4326  # Set the original CRS to EPSG:4326 if unknown
-  }
-  
-  # Check current CRS and transform if necessary
-  if (st_crs(polygons) != 4326) {
-    message("Transforming EPSG from ", original_epsg, " to 4326 (WGS84).")
-    # Use st_transform to convert to WGS84
-    polygons <- suppressMessages(st_transform(polygons, crs = 4326, quiet = TRUE))
-  } else {
-    message("CRS is already WGS 84 (EPSG:4326). No transformation needed.")
+    warning(src, "CRS is missing; setting CRS to WGS 84 (EPSG:4326).")
+    st_crs(polygons) <- 4326
   }
 
-  
+  # Transform to WGS84 if necessary
+  if (st_crs(polygons) != 4326) {
+    message(src, "Transforming CRS to WGS84 (EPSG:4326).")
+    polygons <- suppressMessages(st_transform(polygons, crs = 4326, quiet = TRUE))
+  }
+
   # Rename geometry column 'geom' to 'geometry' if needed.
   if ("geom" %in% names(polygons)) {
-    message("Renaming geometry column 'geom' to 'geometry'.")
+    message(src, "Renaming geometry column 'geom' to 'geometry'.")
     names(polygons)[names(polygons) == "geom"] <- "geometry"
     st_geometry(polygons) <- "geometry"
   }
-  
-  # Check for empty geometries first (before any processing)
+
+  # Remove empty geometries
   empty_idx <- which(st_is_empty(polygons))
-  
   if (length(empty_idx) > 0) {
-    warning("The following ", length(empty_idx), "/", nrow(polygons), " rows have empty geometries and will be removed:\n      ",
-            paste(empty_idx, collapse = ", "), immediate. = TRUE)
-    
-    # Remove empty geometries
+    warning(src, length(empty_idx), "/", nrow(polygons), " rows have empty geometries and will be removed: ", paste(empty_idx, collapse = ", "))
     polygons <- polygons[-empty_idx, ]
   }
-  
-  # Check geometry types and handle mixed geometries
+
+  # Geometry type checks
   geom_types <- st_geometry_type(polygons)
   unique_geom_types <- unique(geom_types)
-  
-  # Check if we have mixed geometry types
   has_points <- any(grepl("POINT", unique_geom_types))
   has_polygons <- any(grepl("POLYGON", unique_geom_types))
-  
+
   if (has_points && has_polygons) {
-    warning("Mixed geometry types detected (both points and polygons). This may cause issues in downstream analysis.")
-    message("Geometry types found: ", paste(unique_geom_types, collapse = ", "))
+    warning(src, "Mixed geometry types detected (points and polygons). This may affect downstream analysis.")
+    message(src, "Geometry types: ", paste(unique_geom_types, collapse = ", "))
   }
-  
-  # Report point geometries
+
   if (has_points) {
-    point_indices <- grepl("POINT", geom_types)
-    n_points <- sum(point_indices)
-    message("Point geometries detected: ", n_points, " point(s) will be processed using optimized point extraction.")
+    n_points <- sum(grepl("POINT", geom_types))
+    message(src, n_points, " point geometries detected (optimized point extraction will be used).")
   }
-  
+
   # Handle polygon geometries (apply st_make_valid)
   if (has_polygons) {
     polygon_indices <- grepl("POLYGON", geom_types)
     n_polygons <- sum(polygon_indices)
-    
-    # Check for invalid polygons first
+
     invalid_polygon_idx <- polygon_indices & !st_is_valid(polygons)
     n_invalid_polygons <- sum(invalid_polygon_idx)
-    
     if (n_invalid_polygons > 0) {
-      invalid_rows <- which(invalid_polygon_idx)
-      warning("The following ", n_invalid_polygons, "/", n_polygons, " polygon rows have invalid geometries that will be fixed using st_make_valid():\n      ",
-              paste(invalid_rows, collapse = ", "), immediate. = TRUE)
+      warning(src, n_invalid_polygons, "/", n_polygons, " polygon rows have invalid geometries and will be fixed.")
     }
-    
-    # Apply st_make_valid() only to polygon geometries
-    message("Applying st_make_valid() to ", n_polygons, " polygon geometries to ensure validity.")
-    
-    # Create a copy to work with
+
+    message(src, "Applying st_make_valid() to ", n_polygons, " polygon geometries.")
     temp_polygons <- polygons
     temp_polygons[polygon_indices, ] <- st_make_valid(temp_polygons[polygon_indices, ])
-    
-    # Check if any polygons became empty after st_make_valid()
+
     post_valid_empty_idx <- which(polygon_indices & st_is_empty(temp_polygons))
-    
     if (length(post_valid_empty_idx) > 0) {
-      warning("The following ", length(post_valid_empty_idx), "/", n_polygons, " polygon rows became empty after st_make_valid() and will be removed:\n      ",
-              paste(post_valid_empty_idx, collapse = ", "), immediate. = TRUE)
-      
-      # Remove geometries that became empty after validation
+      warning(src, length(post_valid_empty_idx), "/", n_polygons, " polygon rows became empty after st_make_valid() and will be removed: ", paste(post_valid_empty_idx, collapse = ", "))
       temp_polygons <- temp_polygons[-post_valid_empty_idx, ]
     }
-    
+
     polygons <- temp_polygons
-    
-    # Handle geometries crossing the dateline
     polygons <- st_wrap_dateline(polygons, options = c("WRAPDATELINE=YES", "DATELINEOFFSET=180"))
   }
-  
-  # Final check for any remaining empty geometries
+
+  # Final checks
   final_empty_idx <- which(st_is_empty(polygons))
-  
   if (length(final_empty_idx) > 0) {
-    warning("Final check: The following ", length(final_empty_idx), "/", nrow(polygons), " rows have empty geometries and will be removed:\n      ",
-            paste(final_empty_idx, collapse = ", "), immediate. = TRUE)
-    
-    # Remove empty geometries
+    warning(src, length(final_empty_idx), "/", nrow(polygons), " rows have empty geometries and will be removed: ", paste(final_empty_idx, collapse = ", "))
     polygons <- polygons[-final_empty_idx, ]
   }
-  
-  # Final validation check
+
   final_invalid_idx <- which(!st_is_valid(polygons))
-  
   if (length(final_invalid_idx) > 0) {
-    warning("Final check: The following ", length(final_invalid_idx), "/", nrow(polygons), " rows still have invalid geometries:\n      ",
-            paste(final_invalid_idx, collapse = ", "), immediate. = TRUE)
+    warning(src, length(final_invalid_idx), "/", nrow(polygons), " rows still have invalid geometries: ", paste(final_invalid_idx, collapse = ", "))
   }
-  
-  message("Final result: ", nrow(polygons), " valid geometries loaded.")
-  
+
+  message(src, "Final result: ", nrow(polygons), " valid geometries loaded.")
+
   return(polygons)
 }
 
 #' Buffer Polygons Based on Raster Resolution
 #'
-#' @Description:
+#' @description
 #'   This function computes a buffered extent around the input polygons using the raster's resolution.
 #'   The extent is expanded by a factor specified by the user (buffer_factor). The buffered extent is
 #'   returned as a terra::ext object.
 #'
-#' @Input:
+#' @param:
 #'   - raster: (SpatRaster) A raster object from which the resolution is extracted.
 #'   - polygons: (sf or SpatVector) A spatial object containing the polygons.
 #'   - buffer_factor: (numeric) A factor by which to multiply the raster resolution when buffering
 #'         the polygons' extent.
 #'
-#' @Output:
+#' @return:
 #'   - A buffered extent (terra::ext object) computed as:
 #'         xmin = polygons_extent$xmin - buffer_factor * x_res,
 #'         xmax = polygons_extent$xmax + buffer_factor * x_res,
 #'         ymin = polygons_extent$ymin - buffer_factor * y_res,
 #'         ymax = polygons_extent$ymax + buffer_factor * y_res.
 #'
-#' @Examples:
+#' @examples
 #'   buffered_extent <- buffer_polygons(environmental_raster, polygons, buffer_factor = 1)
 buffer_polygons <- function(raster, polygons, buffer_factor) { 
   # Extract raster resolution
@@ -335,22 +391,22 @@ buffer_polygons <- function(raster, polygons, buffer_factor) {
 
 #' Filter Raster by Date Range
 #'
-#' @Description:
+#' @description
 #'   This function filters a multi-layer raster based on a specified date range. The raster should have
 #'   layer names corresponding to date strings in 'YYYY-MM-DD' format. The function checks whether the
 #'   specified date range falls within the range of available raster dates and returns the filtered
 #'   raster containing only the layers that match the specified dates.
 #'
-#' @Input:
+#' @param:
 #'   - env_rast: A multi-layer raster object (e.g., from the 'raster' or 'terra' package) with layer names
 #'     corresponding to valid date strings (e.g., 2017-01-01).
 #'   - start_date: A string or Date object representing the start date of the desired date range.
 #'   - end_date: A string or Date object representing the end date of the desired date range.
 #'
-#' @Output:
+#' @return:
 #'   - A filtered raster object containing only the layers corresponding to the specified date range.
 #'
-#' @Examples:
+#' @examples
 #'   # Assuming 'my_raster' is a multi-layer raster and you wish to filter
 #'   # it for dates between January 1, 2018, and December 31, 2018:
 #'   filtered_raster <- filter_env_rast(my_raster, start_date = "2018-01-01", end_date = "2018-12-31")
@@ -412,16 +468,16 @@ filter_env_rast <- function(env_rast, start_date, end_date) {
 
 #' Parse Boundary Dates from Raster Layer Names
 #'
-#' @Description:
+#' @description
 #'   Determines temporal resolution and converts first/last layer names to date boundaries.
 #'   For hourly/daily: returns dates as-is
 #'   For monthly: returns first day of first month and last day of last month
 #'   For yearly: returns Jan 1st of first year and Dec 31st of last year
 #'
-#' @Input:
+#' @param:
 #'   - env_rast: Terra raster with date-formatted layer names
 #'
-#' @Output:
+#' @return:
 #'   - Vector of two Date objects representing start and end boundaries
 #'
 parse_boundary_dates <- function(env_rast) {

@@ -1,3 +1,12 @@
+#' @importFrom terra rast crop resample window crs res ext tapp app
+#' @importFrom sf st_geometry_type st_crs st_buffer st_is_longlat st_coordinates st_drop_geometry
+#' @importFrom exactextractr exact_extract
+#' @importFrom data.table as.data.table setnames setorder rbindlist copy setcolorder setkeyv setorderv
+#' @importFrom dplyr left_join mutate select relocate any_of
+#' @importFrom lubridate ymd ym ymd_hm year month day hour minute days_in_month
+#' @importFrom arrow write_parquet
+NULL
+
 #' Get the boundary dates for the weighting periods based on the layer names of the secondary weight raster.
 #'
 #' @description
@@ -80,21 +89,21 @@ get_period_boundaries <- function(sec_weight_raster, boundary_dates) {
 
 #' Create Periods from Boundary Dates
 #'
-#' @Description:
+#' @description
 #'   This function generates a structured sequence of time periods based on a vector of boundary dates.
 #'   Given a sorted vector of dates, it constructs periods where each start date corresponds to a boundary
 #'   date, and the end date is one day before the next boundary date, except for the final period, which
 #'   ends exactly at the last boundary date.
 #'
-#' @Input:
+#' @param:
 #'   - boundary_dates: A sorted vector of dates (length >= 2) defining the breakpoints for periods.
 #'
-#' @Output:
+#' @return:
 #'   - A data.frame with two columns:
 #'       - `start_date`: The starting date of each period.
 #'       - `end_date`: The ending date of each period (one day before the next boundary date, except for the last period).
 #'
-#' @Examples:
+#' @examples
 #'   boundary_dates <- as.Date(c("2020-01-01", "2020-06-01", "2020-12-31"))
 #'   periods <- create_periods(boundary_dates)
 #'   print(periods)
@@ -119,22 +128,22 @@ create_periods <- function(boundary_dates) {
 
 #' Split Raster by Weighting Periods
 #'
-#' @Description:
+#' @description
 #'   This function splits an already cropped multi-layer SpatRaster into a list of raster stacks,
 #'   one for each weighting period defined in the provided period definitions. The period definitions
 #'   should be a data.frame with 'start_date' and 'end_date' columns (in Date format). The function
 #'   returns a named list of raster stacks, where each element corresponds to a period (e.g., "period_1").
 #'
-#' @Input:
+#' @param:
 #'   - raster: A cropped SpatRaster with layernames corresponding to the date e.g. name of layer 1: 2017-01-01
 #'   - period_defs: A data.frame containing weighting period definitions with the following columns:
 #'         - start_date: The start date of the period.
 #'         - end_date: The end date of the period.
 #'
-#' @Output:
+#' @return:
 #'   - A named list of SpatRaster objects, each corresponding to one period.
 #'
-#' @Examples:
+#' @examples
 #'   # Assuming 'cropped_raster' is a cropped SpatRaster with time metadata and
 #'   # 'period_defs' is a data.frame with start_date and end_date columns:
 #'   periods_list <- assign_weighting_periods(cropped_raster, period_defs)
@@ -187,30 +196,31 @@ assign_weighting_periods <- function(raster, period_defs) {
 #'
 #' @description
 #' This function verifies that the number of environmental raster periods matches the number of
-#' secondary weight raster files when secondary weighting is requested. If `sec_weights` is TRUE, it
+#' secondary weight raster layers when secondary weighting is requested. If `sec_weights` is TRUE, it
 #' stops with an error if the counts do not match and then generates a verification table displaying
-#' each period's name, date range, and the corresponding secondary weight raster file. If `sec_weights`
+#' each period's name, date range, and the corresponding secondary weight raster layer. If `sec_weights`
 #' is FALSE, it prints a message stating that no secondary weighting was requested and creates the
 #' verification table with the Secondary_Weight_Raster column left empty.
 #'
 #' @param env_rast_list A list of environmental raster subsets, one per weighting period.
-#' @param sec_weight_rast_files (Optional) A list of file paths to secondary weight rasters. Required if sec_weights = TRUE.
+#' @param sec_weight_layer_names (Optional) A character vector of secondary weight raster layer names. Required if sec_weights = TRUE.
 #' @param sec_weights Logical flag indicating whether to use secondary weight rasters. Default is TRUE
+#' @param sec_weight_name Name of the secondary weight product for display purposes
 #'
 #' @return A data.frame verification table with columns:
 #'   - Period: The name of the period.
 #'   - Date_Range: The date range for that period (derived from the raster layer names).
-#'   - Secondary_Weight_Raster: The corresponding secondary weight raster file path (or NA if sec_weights = FALSE).
+#'   - Secondary_Weight_Raster: The corresponding secondary weight raster layer name (or NA if sec_weights = FALSE).
 #'
 #' @examples
 #' \dontrun{
 #'   # When secondary weighting is used:
-#'   check_periods(env_rast_list, sec_weight_rast_files, sec_weights = TRUE)
+#'   check_periods(env_rast_list, sec_weight_layer_names, sec_weights = TRUE)
 #'
 #'   # When secondary weighting is not used:
 #'   check_periods(env_rast_list, sec_weights = FALSE)
 #' }
-check_periods <- function(env_rast_list, sec_weight_rast_files = NULL, sec_weights = TRUE, sec_weight_name) {
+check_periods <- function(env_rast_list, sec_weight_layer_names = NULL, sec_weights = TRUE, sec_weight_name) {
   # Get period names and date ranges from the environmental raster list.
   period_names <- names(env_rast_list)
   period_ranges <- sapply(env_rast_list, function(r) {
@@ -218,14 +228,14 @@ check_periods <- function(env_rast_list, sec_weight_rast_files = NULL, sec_weigh
   })
   
   if (sec_weights) {
-    if (is.null(sec_weight_rast_files)) {
-      stop("Secondary weight rasters are required when sec_weights = TRUE.")
+    if (is.null(sec_weight_layer_names)) {
+      stop("Secondary weight raster layer names are required when sec_weights = TRUE.")
     }
-    if (length(env_rast_list) != length(sec_weight_rast_files)) {
+    if (length(env_rast_list) != length(sec_weight_layer_names)) {
       stop("Error: Mismatch between the number of environmental raster periods (", 
            length(env_rast_list), 
-           ") and secondary weight raster files (", 
-           length(sec_weight_rast_files), 
+           ") and secondary weight raster layers (", 
+           length(sec_weight_layer_names), 
            ").")
     }
     message("Number of environmental raster periods and secondary weight rasters match. Generating verification table...")
@@ -236,7 +246,7 @@ check_periods <- function(env_rast_list, sec_weight_rast_files = NULL, sec_weigh
   }
   
   # Compactly assign the Secondary_Weight_Raster column using an inline if/else.
-  sec_values <- if (sec_weights) sec_weight_rast_files else rep("not provided", length(env_rast_list))
+  sec_values <- if (sec_weights) sec_weight_layer_names else rep("not provided", length(env_rast_list))
   
   verification_table <- data.frame(
     Period = period_names,
@@ -248,9 +258,11 @@ check_periods <- function(env_rast_list, sec_weight_rast_files = NULL, sec_weigh
   
   # Print as properly formatted table
   message("\nVerification Table:\n")
-  message(paste(rep("-", 90), collapse = ""), "\n")
-  message(verification_table, row.names = FALSE)
-  message(paste(rep("-", 90), collapse = ""), "\n")
+  message(paste(rep("-", 90), collapse = ""))
+  cat("\n")
+  print(verification_table, row.names = FALSE)
+  cat("\n")
+  message(paste(rep("-", 90), collapse = ""))
   
   return(verification_table)
 }
@@ -261,7 +273,7 @@ check_periods <- function(env_rast_list, sec_weight_rast_files = NULL, sec_weigh
 #' This function converts a vector of raster cell values (across time steps) into a one-hot encoded
 #' matrix based on specified bin breaks. It automatically prepends -Inf and appends Inf to the provided
 #' inner break points, ensuring that every finite value is captured in one of the bins. The output
-#' matrix has dimensions [n_time, n_bins], where each row represents a time step and contains a 
+#' matrix has dimensions (n_time x n_bins), where each row represents a time step and contains a 
 #' one-hot encoding indicating which bin that time step's value falls into.
 #'
 #' @param x A numeric vector of cell values across time steps.
@@ -269,7 +281,7 @@ check_periods <- function(env_rast_list, sec_weight_rast_files = NULL, sec_weigh
 #'   automatically prepends `-Inf` and appends `Inf` to this vector.
 #' @param ... Additional arguments to be passed to `findInterval`, allowing customization of the binning behavior.
 #'
-#' @return A matrix with dimensions [n_time, n_bins] where n_time is the length of x and n_bins is 
+#' @return A matrix with dimensions (n_time x n_bins) where n_time is the length of x and n_bins is 
 #'   length(breaks) + 1. Each row contains a one-hot encoding with a single 1 indicating which bin 
 #'   that time step's value belongs to, and 0s elsewhere.
 #'
@@ -310,7 +322,7 @@ create_bins <- function(x, breaks, ...) {
 
 #' Select Transformation Function
 #'
-#' @Description:
+#' @description
 #'   This function selects and returns the appropriate transformation function based on the
 #'   provided transformation type. It supports the following transformation types:
 #'     - "polynomial": returns the polynomial transformation function from stats::poly.
@@ -318,15 +330,15 @@ create_bins <- function(x, breaks, ...) {
 #'     - "b_spline": returns the B-spline transformation function from splines::bs.
 #'     - "custom": returns NULL and prompts the user to assign a custom transformation function.
 #'
-#' @Input:
+#' @param:
 #'   - trans_type: (character) A string specifying the desired transformation type.
 #'       Supported values are "polynomial", "natural_spline", "b_spline", and "custom".
 #'
-#' @Output:
+#' @return:
 #'   - A function object corresponding to the selected transformation. For example, if
 #'     trans_type is "polynomial", it returns stats::poly.
 #'
-#' @Examples:
+#' @examples
 #'   # Select natural spline transformation
 #'   ns_fun <- select_trans_fun("natural_spline")
 #'
@@ -367,7 +379,7 @@ select_trans_fun <- function(trans_type) {
 
 #' Check Transformation Function Arguments
 #'
-#' @Description:
+#' @description
 #'   This function verifies that the supplied transformation function is valid and that its 
 #'   arguments meet the required conditions for processing. In particular, it checks that:
 #'     - The provided object is a function.
@@ -375,15 +387,15 @@ select_trans_fun <- function(trans_type) {
 #'     - If the function is stats::poly (used for polynomial transformations), it forces the 
 #'       argument 'raw' to TRUE.
 #'
-#' @Input:
+#' @param:
 #'   - fun: (function) The transformation function to be used (e.g., stats::poly, splines::bs).
 #'   - args: (list) A list of arguments intended for the transformation function.
 #'
-#' @Output:
+#' @return:
 #'   - A (possibly modified) list of arguments, ensuring that required conditions (such as raw = TRUE for poly)
 #'     are met.
 #'
-#' @Examples:
+#' @examples
 #'   # Example for a polynomial transformation:
 #'   trans_args <- list(degree = 3)
 #'   updated_args <- check_trans(stats::poly, trans_args)
@@ -416,7 +428,7 @@ check_trans <- function(fun, args) {
   }
   
   message("Please make sure the following transformation arguments are correct:")
-  message(args)
+  print(args)
   
   # Return the (possibly modified) arguments.
   args
@@ -462,7 +474,7 @@ check_spatial_agg_args <- function(args) {
   
   message("Spatial aggregation arguments have been checked successfully.")
   message("Passing the following arguments to exact_extract:")
-  message(args)
+  print(args)
   
   return(args)
 }
@@ -702,7 +714,7 @@ clean_spatial_agg_output <- function(extraction_result, time_steps, polygons, po
 #' \dontrun{
 #'   result <- trans_spatial_agg_polygons(raster_subset, trans_fun, checked_trans_args,
 #'                                    polygons, agg_weights, spatial_agg_args, poly_id_col)
-#'                                    
+#' }
 trans_spatial_agg_polygons <- function(raster_subset, trans_fun, checked_trans_args, polygons, agg_weights, spatial_agg_args, poly_id_col) {
   
   step2_start <- Sys.time()
@@ -923,7 +935,9 @@ trans_spatial_agg_points <- function(raster_subset,
 #' Even periods that fit in a single batch are saved to disk for consistency.
 #'
 #' @param env_rast_list A list of environmental raster subsets, one per weighting period.
-#' @param sec_weight_rast_files A list of file paths to secondary weight rasters corresponding to each period.
+#' @param sec_weight_rast_list A list of secondary weight raster layers (SpatRaster objects), one per weighting period.
+#'                             Each element should be a single-layer or multi-layer SpatRaster corresponding to that period.
+#'                             Use NULL if sec_weights = FALSE.
 #' @param polygons An sf object containing the spatial polygons over which aggregation is performed.
 #' @param buffered_extent A buffered extent used to crop the secondary weight rasters.
 #' @param trans_type A character string indicating the type of transformation.
@@ -932,7 +946,7 @@ trans_spatial_agg_points <- function(raster_subset,
 #' @param spatial_agg_args A list of arguments to pass to `exact_extract` for spatial aggregation.
 #' @param poly_id_col The name of the polygon identifier column in the polygons object.
 #' @param weighting_periods A data structure containing information for each weighting period.
-#' @param paths A list of file paths used in processing; must contain at least \code{path_sec_weight_rast}.
+#' @param save_path Optional character string specifying the output directory. Required if save_batch_output = TRUE.
 #' @param sec_weights Logical flag indicating whether to use secondary weight rasters (TRUE) or area weights (FALSE).
 #' @param max_cells Numeric maximum allowed number of cells for processing a raster subset at once.
 #' @param save_batch_output Logical indicating whether to save intermediate batch outputs to disk for memory efficiency (default: TRUE).
@@ -954,13 +968,13 @@ trans_spatial_agg_points <- function(raster_subset,
 #'
 #' @examples
 #' \dontrun{
-#'   result <- trans_spatial_agg(env_rast_list, sec_weight_rast_files, polygons, buffered_extent,
+#'   result <- trans_spatial_agg(env_rast_list, sec_weight_rast_list, polygons, buffered_extent,
 #'                               trans_type, trans_fun, checked_trans_args, spatial_agg_args, 
-#'                               poly_id_col = "poly_id", weighting_periods, paths, 
+#'                               poly_id_col = "poly_id", weighting_periods, save_path, 
 #'                               sec_weights = TRUE, max_cells = 3e7)
 #' }
 trans_spatial_agg <- function(env_rast_list,
-                              sec_weight_rast_files,
+                              sec_weight_rast_list,
                               polygons,
                               buffered_extent,
                               trans_type,
@@ -969,7 +983,7 @@ trans_spatial_agg <- function(env_rast_list,
                               spatial_agg_args,
                               poly_id_col,
                               weighting_periods,
-                              paths,
+                              save_path,
                               sec_weights = TRUE,
                               max_cells = 3e7,
                               save_batch_output = TRUE,
@@ -1021,7 +1035,7 @@ trans_spatial_agg <- function(env_rast_list,
   # Setup batch directory if saving to disk
   batch_dir <- NULL
   if (save_batch_output) {
-    batch_dir <- file.path(paths$path_out_folder, "temporary_batch_output")
+    batch_dir <- file.path(save_path, "temporary_batch_output")
     if (!dir.exists(batch_dir)) {
       dir.create(batch_dir, recursive = TRUE)
     }
@@ -1046,9 +1060,10 @@ trans_spatial_agg <- function(env_rast_list,
     # Step 1: Secondary Weight Raster Processing
     step1_start <- Sys.time()
     if (sec_weights) {
-      message(" [Step 1] Reading, cropping, and resampling secondary weight raster...")
-      sec_weight_path <- file.path(paths$path_sec_weight_rast, sec_weight_rast_files[[i]])
-      sec_weight_rast <- rast(sec_weight_path)
+      message(" [Step 1] Cropping and resampling secondary weight raster...")
+      
+      # sec_weight_rast_list[[i]] is already a SpatRaster layer
+      sec_weight_rast <- sec_weight_rast_list[[i]]
       
       # Check if secondary weight raster is in EPSG:4326
       sec_weight_epsg <- crs(sec_weight_rast, describe = TRUE)$code
@@ -1057,7 +1072,7 @@ trans_spatial_agg <- function(env_rast_list,
              ifelse(is.null(sec_weight_epsg) || is.na(sec_weight_epsg), "Unknown", paste0("EPSG:", sec_weight_epsg)))
       }
       
-      window(sec_weight_rast) <- buffered_extent
+      terra::window(sec_weight_rast) <- buffered_extent
       env_rast_subset <- env_rast_list[[i]]
       agg_weights <- resample(sec_weight_rast, env_rast_subset, method = "average")
     } else {
@@ -1541,7 +1556,7 @@ get_area_weights <- function(raster, polygons, polygon_id_col) {
 
 #' Temporal Aggregation of Wide Spatial Extraction Results (With Optional Metadata Retention)
 #'
-#' @Description:
+#' @description
 #'   This function aggregates the wide-format spatial extraction output over time according
 #'   to a specified temporal resolution. It robustly identifies date columns using lubridate
 #'   and a regex check (accepting formats "YYYY", "YYYY-MM", or "YYYY-MM-DD"). An aggregation key is
@@ -1552,7 +1567,7 @@ get_area_weights <- function(raster, polygons, polygon_id_col) {
 #'   If `keep_metadata = FALSE`, only the identifier columns (defined as "poly_id" and "trans_var")
 #'   are retained.
 #'
-#' @Input:
+#' @param:
 #'   - spatial_output: A data.table or data.frame produced by spatial aggregation, containing
 #'         identifier columns (e.g., "poly_id" and "trans_var") and additional columns whose names
 #'         represent dates in one of the formats: "YYYY", "YYYY-MM", or "YYYY-MM-DD". Any additional
@@ -1564,12 +1579,12 @@ get_area_weights <- function(raster, polygons, polygon_id_col) {
 #'   - keep_metadata: Logical (default TRUE). If TRUE, retains all non-date columns from spatial_output.
 #'                    If FALSE, only the identifier columns ("poly_id" and "trans_var") are retained.
 #'
-#' @Output:
+#' @return:
 #'   - A wide-format data.table with the identifier columns (and, if keep_metadata = TRUE, additional metadata columns)
 #'     and one column per aggregated time period (named by the aggregated date). For daily resolution, the original
 #'     data is returned.
 #'
-#' @Examples:
+#' @examples
 #'   agg_args <- list(
 #'     out_temp_res = "monthly",
 #'     temp_agg_fun = mean

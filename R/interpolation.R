@@ -1,3 +1,7 @@
+#' @importFrom terra rast window xapp
+#' @importFrom lubridate year ymd_hm
+NULL
+
 #' Mean Interpolation for Daily Temperature Values
 #'
 #' @description
@@ -187,8 +191,8 @@ tmin_tmax_interpolation <- function(paths, polygons, boundary_dates, interpol_fu
   buffered_extent <- buffer_polygons(tmin_raster, polygons, buffer_factor = 1)
   
   # Crop the extent of the raster to the polygon buffer (terra::window is faster than terra::crop. To undo the crop, load the raster back in with terra::rast())
-  window(tmin_raster) <- buffered_extent
-  window(tmax_raster) <- buffered_extent
+  terra::window(tmin_raster) <- buffered_extent
+  terra::window(tmax_raster) <- buffered_extent
   
   # Check if boundary_dates are provided
   if (!is.null(boundary_dates)) {
