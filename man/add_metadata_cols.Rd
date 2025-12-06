@@ -25,13 +25,13 @@ This function adds metadata columns to a spatial aggregation data.table (dt). Sp
 \item Adds columns from the supplied metadata (a named list) to dt, if provided.
 \item Concatenates the transformation arguments (provided as a named list) into a single string,
 stored in the "trans_call" column.
-\item Reorders the columns so that key metadata fields appear first: "poly_id", "trans_type", "trans_var"
+\item Reorders the columns so that key metadata fields appear first: "geom_id", "trans_type", "trans_var"
 then the metadata columns (if any), followed by "trans_call", and finally any remaining columns.
 }
 }
 \examples{
 \dontrun{
-  dt <- data.table(poly_id = 1:3, trans_var = c("A", "B", "C"), other_col = 1:3)
+  dt <- data.table(geom_id = 1:3, trans_var = c("A", "B", "C"), other_col = 1:3)
   trans_type <- "polynomial"
   metadata <- list(source = "ERA5", resolution = "0.25")
   trans_args <- list(degree = 3, raw = TRUE)

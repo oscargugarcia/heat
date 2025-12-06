@@ -7,7 +7,7 @@
 r2e2(
   env_rast,
   polygons,
-  poly_id_col = NULL,
+  geom_id_col = NULL,
   trans_type,
   degree = NULL,
   breaks = NULL,
@@ -41,9 +41,9 @@ Layer names must be in date format (e.g., "YYYY-MM-DD").}
 (e.g., shapefile, geopackage), OR an sf/SpatVector object containing the
 polygons for spatial aggregation.}
 
-\item{poly_id_col}{A character string representing the column name of the unique ID
+\item{geom_id_col}{A character string representing the column name of the unique ID
 in the polygon dataset (e.g., "GEOID"). If NULL, a row_index
-column will be created and used as the polygon ID,
+column will be created and used as the geometry ID,
 and all other columns are kept in the output.}
 
 \item{trans_type}{A character string indicating the type of transformation to apply
@@ -107,17 +107,17 @@ are validated to ensure layer counts match current processing parameters (defaul
 \item{compression}{A character string specifying the compression algorithm for parquet
 files (default is 'zstd').}
 
-\item{validation}{A logical value indicating whether to generate control check
-reports for data validation (default is TRUE).}
+\item{validation}{A logical value indicating whether to run validation checks
+for data quality control (default is TRUE).}
 
-\item{validation_var}{The name of the transformation variable to be used in the report.
+\item{validation_var}{The name of the transformation variable to be used in validation plots.
 (default is 'degree_1' but if not found, it will use the first detected transformation variable)}
 
 \item{validation_var_name}{A character string describing the transformation variable
 for plot labels (default is "Temperature (C°)")}
 
-\item{validation_rmd}{A character string specifying the name of the RMD template
-file to look for in the utils folder (default is "02_control_checks_source_template.Rmd")}
+\item{verbose}{Integer controlling message verbosity: 0 = silent, 1 = concise progress messages,
+2 = detailed messages (default: 1). This applies to both the r2e2 pipeline and validation checks.}
 }
 \value{
 A list containing the processed data frames:

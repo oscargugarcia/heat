@@ -4,19 +4,19 @@
 \alias{get_area_weights}
 \title{Get Area Weights from Raster Extraction}
 \usage{
-get_area_weights(raster, polygons, polygon_id_col)
+get_area_weights(raster, polygons, geom_id_col)
 }
 \arguments{
 \item{raster}{A single-layer SpatRaster from which to extract cell information.}
 
 \item{polygons}{An sf object containing polygon or point geometries.}
 
-\item{polygon_id_col}{A string indicating the column name in the polygons object that contains the geometry identifier.}
+\item{geom_id_col}{A string indicating the column name in the polygons object that contains the geometry identifier.}
 }
 \value{
 A data frame with columns:
 \itemize{
-\item poly_id: The geometry identifier (renamed from the column specified by polygon_id_col).
+\item geom_id: The geometry identifier (renamed from the column specified by geom_id_col).
 \item x: The x-coordinate (cell center for polygons, exact coordinate for points).
 \item y: The y-coordinate (cell center for polygons, exact coordinate for points).
 }
@@ -30,10 +30,10 @@ and coordinates, useful for spatial aggregation tasks.
 \examples{
 \dontrun{
   # For polygons:
-  area_weights <- get_area_weights(env_rast[[1]], polygons, polygon_id_col = "poly_id")
+  area_weights <- get_area_weights(env_rast[[1]], polygons, geom_id_col = "geom_id")
   
   # For points:
-  area_weights <- get_area_weights(env_rast[[1]], points, polygon_id_col = "site_id")
+  area_weights <- get_area_weights(env_rast[[1]], points, geom_id_col = "site_id")
   
   arrow::write_parquet(area_weights, file.path(paths$path_out_folder, "area_weights.parquet"))
 }

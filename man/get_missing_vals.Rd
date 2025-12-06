@@ -7,24 +7,24 @@
 get_missing_vals(dt, date_columns, verbose = 1)
 }
 \arguments{
-\item{dt}{A data.table (or data.frame) containing the date columns and a "poly_id" column.}
+\item{dt}{A data.table (or data.frame) containing the date columns and a "geom_id" column.}
 
 \item{date_columns}{A character vector specifying the names of the date columns to check.}
 }
 \value{
-A vector of unique polygon IDs (from the "poly_id" column) for which at least one specified date column is missing.
+A vector of unique polygon IDs (from the "geom_id" column) for which at least one specified date column is missing.
 }
 \description{
 This function checks the specified date columns in a data.table (or data.frame) for missing (NA) values.
 It first makes a shallow copy of the input data.table to avoid issues with internal self-references.
 The function then flags rows where any of the specified date columns are NA, extracts the unique polygon IDs
-from the "poly_id" column for those rows, and prints a warning if any are found. If no missing values are detected,
+from the "geom_id" column for those rows, and prints a warning if any are found. If no missing values are detected,
 a message is printed indicating that all polygons have complete date data.
 }
 \examples{
 \dontrun{
   library(data.table)
-  dt <- data.table(poly_id = 1:5,
+  dt <- data.table(geom_id = 1:5,
                    "2020-01-01" = c(1, NA, 3, 4, NA),
                    "2020-01-02" = c(NA, 2, NA, 4, 5))
   missing_polys <- get_missing_vals(dt, date_columns = c("2020-01-01", "2020-01-02"))

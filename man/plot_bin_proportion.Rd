@@ -4,7 +4,7 @@
 \alias{plot_bin_proportion}
 \title{Plot Bin Proportion}
 \usage{
-plot_bin_proportion(data, temporal_resolution, poly_id_col = "poly_id")
+plot_bin_proportion(data, temporal_resolution, geom_id_col = "geom_id")
 }
 \description{
 Plot Bin Proportion

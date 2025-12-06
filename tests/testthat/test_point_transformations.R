@@ -160,14 +160,14 @@ compare_outputs <- function(actual, expected, tolerance = 1e-2, label = "output"
 #' @param baseline_dir Directory containing baseline files
 #' @param env_rast_path Path to environmental raster directory
 #' @param polygons Polygon/point data
-#' @param poly_id_col Polygon/point ID column name
+#' @param geom_id_col Polygon/point ID column name
 #' @param boundary_dates Date range
 #' @param sec_weight_rast Secondary weight raster (NULL for points)
 #' @param out_temp_res Output temporal resolution
 #' @param temp_agg_fun Temporal aggregation function ("mean" or "sum")
 #' @param tolerance Numerical tolerance
 test_transformation <- function(trans_type, trans_args, baseline_dir,
-                                env_rast_path, polygons, poly_id_col, boundary_dates,
+                                env_rast_path, polygons, geom_id_col, boundary_dates,
                                 sec_weight_rast, out_temp_res, temp_agg_fun = "mean", tolerance = 1e-2) {
   
   # Load baseline outputs
@@ -197,7 +197,7 @@ test_transformation <- function(trans_type, trans_args, baseline_dir,
     r2e2(
       env_rast = env_rast_path,
       polygons = polygons,
-      poly_id_col = poly_id_col,
+      geom_id_col = geom_id_col,
       trans_type = trans_type,
       trans_args = trans_args,
       out_temp_res = out_temp_res,
@@ -245,7 +245,7 @@ env_rast_path <- testthat::test_path("fixtures", "data", "env_rast")
 polygons_path <- testthat::test_path("fixtures", "data", "points.gpkg")
 
 # Common parameters
-poly_id_col <- "point_id"
+geom_id_col <- "point_id"
 sec_weight_rast <- NULL  # No secondary weights for points
 boundary_dates <- c(
   as.Date("1999-12-01"),
@@ -283,7 +283,7 @@ test_transformation(
   baseline_dir = testthat::test_path("fixtures", "baseline_output", "point_transformations", "none"),
   env_rast_path = env_rast_path,
   polygons = polygons,
-  poly_id_col = poly_id_col,
+  geom_id_col = geom_id_col,
   boundary_dates = boundary_dates,
   sec_weight_rast = sec_weight_rast,
   out_temp_res = out_temp_res,
@@ -302,7 +302,7 @@ test_transformation(
   baseline_dir = testthat::test_path("fixtures", "baseline_output", "point_transformations", "polynomial"),
   env_rast_path = env_rast_path,
   polygons = polygons,
-  poly_id_col = poly_id_col,
+  geom_id_col = geom_id_col,
   boundary_dates = boundary_dates,
   sec_weight_rast = sec_weight_rast,
   out_temp_res = out_temp_res,
@@ -321,7 +321,7 @@ test_transformation(
   baseline_dir = testthat::test_path("fixtures", "baseline_output", "point_transformations", "natural_spline"),
   env_rast_path = env_rast_path,
   polygons = polygons,
-  poly_id_col = poly_id_col,
+  geom_id_col = geom_id_col,
   boundary_dates = boundary_dates,
   sec_weight_rast = sec_weight_rast,
   out_temp_res = out_temp_res,
@@ -340,7 +340,7 @@ test_transformation(
   baseline_dir = testthat::test_path("fixtures", "baseline_output", "point_transformations", "b_spline"),
   env_rast_path = env_rast_path,
   polygons = polygons,
-  poly_id_col = poly_id_col,
+  geom_id_col = geom_id_col,
   boundary_dates = boundary_dates,
   sec_weight_rast = sec_weight_rast,
   out_temp_res = out_temp_res,
@@ -359,7 +359,7 @@ test_transformation(
   baseline_dir = testthat::test_path("fixtures", "baseline_output", "point_transformations", "bin"),
   env_rast_path = env_rast_path,
   polygons = polygons,
-  poly_id_col = poly_id_col,
+  geom_id_col = geom_id_col,
   boundary_dates = boundary_dates,
   sec_weight_rast = sec_weight_rast,
   out_temp_res = out_temp_res,

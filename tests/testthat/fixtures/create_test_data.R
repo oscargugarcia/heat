@@ -123,7 +123,7 @@ create_test_data <- function() {
   
   # Create sf object with both polygons
   polygons <- st_sf(
-    poly_id = c("poly_1", "poly_2"),
+    geom_id = c("poly_1", "poly_2"),
     name = c("Polygon 1", "Polygon 2"),
     geometry = st_sfc(poly1, poly2, crs = "EPSG:4326")
   )
@@ -186,7 +186,7 @@ plot_env_rast_polygons <- function(env_rast, polygons, layer = 1) {
   # Add polygon labels
   centroids <- st_coordinates(st_centroid(polygons))
   text(centroids[, 1], centroids[, 2], 
-       labels = polygons$poly_id, 
+       labels = polygons$geom_id, 
        col = "black", font = 2, cex = 0.8)
 }
 
@@ -220,7 +220,7 @@ plot_sec_weight_polygons <- function(sec_weight_rast, polygons) {
   # Add polygon labels
   centroids <- st_coordinates(st_centroid(polygons))
   text(centroids[, 1], centroids[, 2], 
-       labels = polygons$poly_id, 
+       labels = polygons$geom_id, 
        col = "blue", font = 2, cex = 0.8)
 }
 

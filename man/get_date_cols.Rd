@@ -24,6 +24,6 @@ parsed as dates in one of the formats "YYYY-MM-DD", "YYYY-MM", or "YYYY". The fu
 a character vector of the names of these date columns.
 }
 \examples{
-  # Suppose dt is a data.table with columns "poly_id", "trans_var", "2017-01-01", "2017-01-02", ...
+  # Suppose dt is a data.table with columns "geom_id", "trans_var", "2017-01-01", "2017-01-02", ...
   date_cols <- get_date_cols(dt)
 }

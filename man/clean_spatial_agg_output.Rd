@@ -8,7 +8,8 @@ clean_spatial_agg_output(
   extraction_result,
   time_steps,
   polygons,
-  polygon_id_col
+  geom_id_col,
+  verbose = 1
 )
 }
 \arguments{
@@ -18,10 +19,10 @@ aggregated columns}
 \item{time_steps}{A vector of dates (or character representations) corresponding to the time steps
 present in the environmental raster subset.}
 
-\item{polygon_id_col}{A string specifying the column in the polygons object containing the polygon ID.}
+\item{geom_id_col}{A string specifying the column in the polygons object containing the geometry ID.}
 }
 \value{
-A data.table with columns: poly_id, , trans_var, and one
+A data.table with columns: geom_id, , trans_var, and one
 column per time step (named by the corresponding time step). Each row represents a polygon and a transformation
 variable.
 }
@@ -42,8 +43,8 @@ variable indicator.
 \examples{
 \dontrun{
   # Suppose spatial_agg_raw is the result of exact_extract, time_steps is a vector of dates, and 
-  # polygons have an identifier in "poly_id". If spatial_agg_args$append_cols is provided, those columns 
+  # polygons have an identifier in "geom_id". If spatial_agg_args$append_cols is provided, those columns 
   # will be reattached.
-  cleaned_DT <- clean_spatial_agg_output(spatial_agg_raw, env_rast_time_steps, "poly_id")
+  cleaned_DT <- clean_spatial_agg_output(spatial_agg_raw, env_rast_time_steps, "geom_id")
 }
 }

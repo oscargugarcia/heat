@@ -22,9 +22,9 @@ NULL
 #'                 (e.g., shapefile, geopackage), OR an sf/SpatVector object containing the 
 #'                 polygons for spatial aggregation.
 #'
-#' @param poly_id_col A character string representing the column name of the unique ID
+#' @param geom_id_col A character string representing the column name of the unique ID
 #'                     in the polygon dataset (e.g., "GEOID"). If NULL, a row_index
-#'                     column will be created and used as the polygon ID, 
+#'                     column will be created and used as the geometry ID, 
 #'                     and all other columns are kept in the output.
 #'
 #' @param trans_type A character string indicating the type of transformation to apply
@@ -118,7 +118,7 @@ NULL
 #' @export
 r2e2 <- function(env_rast,
                  polygons,
-                 poly_id_col = NULL,
+                 geom_id_col = NULL,
                  trans_type,
                  degree = NULL,
                  breaks = NULL,
@@ -214,7 +214,7 @@ r2e2 <- function(env_rast,
       sec_weight_rast_path = if (is.character(sec_weight_rast)) sec_weight_rast else NULL,
       save_path = save_path,
       trans_type = trans_type,
-      poly_id_col = poly_id_col,
+      geom_id_col = geom_id_col,
       sec_weights = sec_weights,  # Inferred from sec_weight_rast
       out_format = out_format,
       boundary_dates = boundary_dates,
@@ -259,10 +259,10 @@ r2e2 <- function(env_rast,
     }
   }
   
-  # Handle NULL poly_id_col by creating row_index and updating spatial_agg_args
-  if (is.null(poly_id_col)) {
-    if (verbose >= 2) {
-      message("No poly_id_col provided. Using row index as polygon ID column. All original columns will be kept in the output.")
+  # Handle NULL geom_id_col by creating row_index and updating spatial_agg_args
+  if (is.null(geom_id_col)) {
+    if(verbose >= 1) {
+      message("No geom_id_col provided. Using row index as geometry ID column. All original columns will be kept in the output.")
     }
     
     # Get column names of the polygons
@@ -277,7 +277,8 @@ r2e2 <- function(env_rast,
     polygons$row_index <- seq_len(nrow(polygons))
   
     # Assign row_index as the polygon ID column
-    poly_id_col <- "row_index"
+        # Update geom_id_col to "row_index"
+    geom_id_col <- "row_index"
     
     # Initialize spatial_agg_args if it's NULL
     if (is.null(spatial_agg_args)) {
@@ -466,7 +467,7 @@ r2e2 <- function(env_rast,
                                    trans_type = trans_type,
                                    checked_trans_args = checked_trans_args,
                                    spatial_agg_args = checked_spatial_agg_args, 
-                                   poly_id_col = poly_id_col, 
+                                   geom_id_col = geom_id_col, 
                                    weighting_periods = weighting_periods, 
                                    save_path = save_path, 
                                    sec_weights = sec_weights,
@@ -498,7 +499,7 @@ r2e2 <- function(env_rast,
   spatial_agg <- add_metadata_cols(spatial_agg, trans_type, metadata, trans_args)
   
   # Note: No geometry is joined here - spatial_agg remains a regular data frame
-  # The poly_id column already exists from the spatial aggregation step
+  # The geom_id column already exists from the spatial aggregation step
   
   ## ---- 3.3 Save output ----------------------------------------------------------
   
@@ -525,7 +526,7 @@ r2e2 <- function(env_rast,
             "\n---------------------------------------------------\n")
   }
   
-  area_weights <- get_area_weights(env_rast[[1]], polygons, poly_id_col)
+  area_weights <- get_area_weights(env_rast[[1]], polygons, geom_id_col)
   if (exists("env_rast")) rm(env_rast)  # Remove original raster
 
   if (save_path_provided) {
@@ -596,7 +597,7 @@ r2e2 <- function(env_rast,
     
     # Save long temporally aggregated output
     temp_agg_long <- reshape_to_long(temp_agg_wide, add_time_columns = TRUE, verbose = verbose)
-    temp_agg_long <- add_appended_cols(temp_agg_long, polygons, poly_id_col, appended_cols)
+    temp_agg_long <- add_appended_cols(temp_agg_long, polygons, geom_id_col, appended_cols)
     
     if (save_path_provided) {
       # Save as parquet (no geometry in output)
@@ -618,7 +619,7 @@ r2e2 <- function(env_rast,
       }
       
       spatial_agg_long <- reshape_to_long(spatial_agg, add_time_columns = TRUE, verbose = verbose)
-      spatial_agg_long <- add_appended_cols(spatial_agg_long, polygons, poly_id_col, appended_cols)
+      spatial_agg_long <- add_appended_cols(spatial_agg_long, polygons, geom_id_col, appended_cols)
       
       if (save_path_provided) {
         # Save as parquet (no geometry in output)
@@ -687,11 +688,11 @@ r2e2 <- function(env_rast,
     # Run validation checks with error handling to prevent r2e2 from breaking
     # This ensures r2e2 completes even if validation fails
     tryCatch({
-      # Prepare geometry for validation by renaming ID column to poly_id
+      # Prepare geometry for validation (ensure ID column is named "geom_id")
       validation_geometry <- polygons
-      if (poly_id_col != "poly_id") {
+      if (geom_id_col != "geom_id") {
         validation_geometry <- validation_geometry %>%
-          dplyr::rename(poly_id = !!rlang::sym(poly_id_col))
+          dplyr::rename(geom_id = !!rlang::sym(geom_id_col))
       }
       
       validate_r2e2(
@@ -704,15 +705,15 @@ r2e2 <- function(env_rast,
         time_series = TRUE,
         summary_stats = TRUE,
         grid_cell_alignment = TRUE,
-        cell_count_per_polygon = TRUE,
-        cell_count_per_polygon_detailed = FALSE,
+        cell_count_per_geometry = TRUE,
+        cell_count_per_geometry_detailed = FALSE,
         binned_output = (trans_type == "bin"),
         verbose = verbose
       )
     }, error = function(e) {
       warning("Validation failed: ", e$message, "\n",
               "Results have been returned successfully. ",
-              "You can run validation separately: validate_r2e2(results = my_results, geometry = my_polygons, ...)")
+              "You can run validation separately: validate_r2e2(results = my_results, geometry = my_geometries, ...)")
     })
   }
   

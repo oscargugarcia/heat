@@ -9,7 +9,7 @@ temp_agg(spatial_output, agg_args, keep_metadata = TRUE, verbose = 1)
 \arguments{
 \item{:}{\itemize{
 \item spatial_output: A data.table or data.frame produced by spatial aggregation, containing
-identifier columns (e.g., "poly_id" and "trans_var") and additional columns whose names
+identifier columns (e.g., "geom_id" and "trans_var") and additional columns whose names
 represent dates in one of the formats: "YYYY", "YYYY-MM", or "YYYY-MM-DD". Any additional
 columns are assumed to be metadata.
 \itemize{
@@ -18,7 +18,7 @@ columns are assumed to be metadata.
 - temp_agg_fun: function; the aggregation function to apply (default is sum if not specified).
 - Any other arguments are passed to the aggregation function.
 \item keep_metadata: Logical (default TRUE). If TRUE, retains all non-date columns from spatial_output.
-If FALSE, only the identifier columns ("poly_id" and "trans_var") are retained.
+If FALSE, only the identifier columns ("geom_id" and "trans_var") are retained.
 }
 }}
 }
@@ -38,7 +38,7 @@ created based on the desired resolution ("daily", "monthly", or "yearly"), and t
 aggregation function (default: sum) is applied row-wise to columns with the same key.
 
 By default, the function retains all non-date columns (metadata) present in the input.
-If \code{keep_metadata = FALSE}, only the identifier columns (defined as "poly_id" and "trans_var")
+If \code{keep_metadata = FALSE}, only the identifier columns (defined as "geom_id" and "trans_var")
 are retained.
 }
 \examples{

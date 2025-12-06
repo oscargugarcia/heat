@@ -13,7 +13,7 @@ trans_spatial_agg(
   trans_fun,
   checked_trans_args,
   spatial_agg_args,
-  poly_id_col,
+  geom_id_col,
   weighting_periods,
   save_path,
   sec_weights = TRUE,
@@ -40,7 +40,7 @@ Use NULL if sec_weights = FALSE.}
 
 \item{spatial_agg_args}{A list of arguments to pass to \code{exact_extract} for spatial aggregation.}
 
-\item{poly_id_col}{The name of the polygon identifier column in the polygons object.}
+\item{geom_id_col}{The name of the polygon identifier column in the polygons object.}
 
 \item{weighting_periods}{A data structure containing information for each weighting period.}
 
@@ -84,7 +84,7 @@ Secondary weight rasters must be in EPSG:4326 coordinate system, otherwise an er
 \dontrun{
   result <- trans_spatial_agg(env_rast_list, sec_weight_rast_list, polygons, buffered_extent,
                               trans_type, trans_fun, checked_trans_args, spatial_agg_args, 
-                              poly_id_col = "poly_id", weighting_periods, save_path, 
+                              geom_id_col = "geom_id", weighting_periods, save_path, 
                               sec_weights = TRUE, max_cells = 3e7)
 }
 }

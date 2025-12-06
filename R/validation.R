@@ -7,8 +7,8 @@
 #' @keywords internal
 process_data <- function(dataframe, input_temporal_resolution, output_temporal_resolution = NULL,
                          filter_start_date = NULL, filter_end_date = NULL,
-                         filter_poly_ids = NULL, average_over_time = FALSE,
-                         average_over_poly_ids = FALSE, value_columns) {
+                         filter_geom_ids = NULL, average_over_time = FALSE,
+                         average_over_geom_ids = FALSE, value_columns) {
   
   if (is.null(output_temporal_resolution)) {
     output_temporal_resolution <- input_temporal_resolution
@@ -34,13 +34,13 @@ process_data <- function(dataframe, input_temporal_resolution, output_temporal_r
     dataframe <- dataframe |> dplyr::filter(date >= filter_start_date & date <= filter_end_date)
   }
   
-  if (!is.null(filter_poly_ids)) {
-    dataframe <- dataframe |> dplyr::filter(poly_id %in% filter_poly_ids)
+  if (!is.null(filter_geom_ids)) {
+    dataframe <- dataframe |> dplyr::filter(geom_id %in% filter_geom_ids)
   }
   
   if (input_temporal_resolution == "daily" && output_temporal_resolution == "monthly") {
     dataframe <- dataframe |>
-      dplyr::group_by(poly_id, year = lubridate::year(date), month = lubridate::month(date)) |>
+      dplyr::group_by(geom_id, year = lubridate::year(date), month = lubridate::month(date)) |>
       dplyr::summarize(dplyr::across(dplyr::all_of(value_columns), ~ mean(.x, na.rm = TRUE)), .groups = 'drop') |>
       dplyr::mutate(date = lubridate::make_date(year, month, 1))
   }
@@ -48,16 +48,16 @@ process_data <- function(dataframe, input_temporal_resolution, output_temporal_r
   dataframe <- dataframe |>
     dplyr::mutate(date = if (output_temporal_resolution == "monthly") format(lubridate::make_date(year, month), "%Y-%m") else date)
   
-  if (average_over_time & average_over_poly_ids) {
+  if (average_over_time & average_over_geom_ids) {
     dataframe <- dataframe |>
       dplyr::summarize(dplyr::across(dplyr::all_of(value_columns), ~ mean(.x, na.rm = TRUE)), .groups = 'drop')
   } else if (average_over_time) {
     dataframe <- dataframe |>
-      dplyr::group_by(poly_id) |>
+      dplyr::group_by(geom_id) |>
       dplyr::summarize(dplyr::across(dplyr::all_of(value_columns), ~ mean(.x, na.rm = TRUE)),
                        NA_count = sum(is.na(.data[[value_columns[1]]])),
                        .groups = 'drop')
-  } else if (average_over_poly_ids) {
+  } else if (average_over_geom_ids) {
     dataframe <- dataframe |>
       dplyr::group_by(date) |>
       dplyr::summarize(dplyr::across(dplyr::all_of(value_columns), ~ mean(.x, na.rm = TRUE)), .groups = 'drop')
@@ -73,7 +73,7 @@ plot_spatial_averages <- function(data, target_geometry, title, fill_variable, f
                                   x_label = "Longitude", y_label = "Latitude") {
   
   merged_data <- data |>
-    dplyr::left_join(target_geometry |> dplyr::select(poly_id, geometry), by = "poly_id") |>
+    dplyr::left_join(target_geometry |> dplyr::select(geom_id, geometry), by = "geom_id") |>
     sf::st_as_sf()
   
   is_points <- any(grepl("POINT", sf::st_geometry_type(merged_data)))
@@ -272,7 +272,7 @@ plot_overall_density <- function(data) {
   ggplot2::ggplot(data, ggplot2::aes(x = cell_count, fill = group)) +
     ggplot2::geom_density(alpha = 0.8, adjust = 0.1) +
     ggplot2::scale_fill_manual(values = group_colors) +
-    ggplot2::labs(title = "Grid Cell Counts per Polygon",
+    ggplot2::labs(title = "Grid Cell Counts per Geometry",
                   x = "Grid Cell Count",
                   y = "Density",
                   fill = "Group") +
@@ -327,7 +327,7 @@ transform_binned_output <- function(data, temporal_resolution) {
 #' Plot Bin Proportion
 #'
 #' @keywords internal
-plot_bin_proportion <- function(data, temporal_resolution, poly_id_col = "poly_id") {
+plot_bin_proportion <- function(data, temporal_resolution, geom_id_col = "geom_id") {
   
   bin_vars <- names(data)[startsWith(names(data), "bin_")]
   
@@ -377,8 +377,8 @@ plot_bin_proportion <- function(data, temporal_resolution, poly_id_col = "poly_i
 #' @param results Optional list output from r2e2() containing spatial_agg, temp_agg_long, area_weights, etc.
 #'                If provided, the function will automatically select the best data for validation.
 #' @param df_long Data frame in long format (output from r2e2). If results is provided, this is ignored.
-#' @param geometry sf object containing polygon geometries with poly_id column
-#' @param area_weights Data frame with area weights (including poly_id, x, y columns); required for some checks.
+#' @param geometry sf object containing geometries with geom_id column
+#' @param area_weights Data frame with area weights (including geom_id, x, y columns); required for some checks.
 #'                     If results is provided, this is extracted automatically.
 #' @param validation_var Character string specifying which transformed variable to validate (e.g., "degree_1")
 #' @param validation_var_name Character string describing the variable for plot labels (e.g., "Temperature (°C)")
@@ -387,8 +387,8 @@ plot_bin_proportion <- function(data, temporal_resolution, poly_id_col = "poly_i
 #' @param time_series Logical; run time series check (default TRUE)
 #' @param summary_stats Logical; run summary statistics check (default TRUE)
 #' @param grid_cell_alignment Logical; run grid cell alignment check (default TRUE)
-#' @param cell_count_per_polygon Logical; run cell count per polygon check (default TRUE)
-#' @param cell_count_per_polygon_detailed Logical; show detailed plots by group (default FALSE)
+#' @param cell_count_per_geometry Logical; run cell count per geometry check (default TRUE)
+#' @param cell_count_per_geometry_detailed Logical; show detailed plots by group (default FALSE)
 #' @param binned_output Logical; run binned output check (default TRUE for bin transformations)
 #' @param verbose Integer controlling message verbosity: 0 = silent, 1 = concise progress messages, 2 = detailed (default: 1)
 #'
@@ -405,8 +405,8 @@ validate_r2e2 <- function(results = NULL,
                           time_series = TRUE,
                           summary_stats = TRUE,
                           grid_cell_alignment = TRUE,
-                          cell_count_per_polygon = TRUE,
-                          cell_count_per_polygon_detailed = FALSE,
+                          cell_count_per_geometry = TRUE,
+                          cell_count_per_geometry_detailed = FALSE,
                           binned_output = NULL,
                           verbose = 1) {
   
@@ -477,7 +477,7 @@ validate_r2e2 <- function(results = NULL,
         message("\nPackages installed successfully!")
         message("Please restart your R session and run validation again.")
         message("\nNote: You can run validation separately without re-running r2e2:")
-        message("  validate_r2e2(results = my_results, geometry = my_polygons, ...)")
+        message("  validate_r2e2(results = my_results, geometry = my_geometries, ...)")
         message("===============================================================================\n")
         return(invisible(FALSE))
       }, error = function(e) {
@@ -485,7 +485,7 @@ validate_r2e2 <- function(results = NULL,
         message("Please install manually using: install.packages(c('", 
              paste(missing_packages, collapse = "', '"), "'))")
         message("\nNote: You can run validation separately without re-running r2e2:")
-        message("  validate_r2e2(results = my_results, geometry = my_polygons, ...)")
+        message("  validate_r2e2(results = my_results, geometry = my_geometries, ...)")
         message("===============================================================================\n")
         return(invisible(FALSE))
       })
@@ -494,7 +494,7 @@ validate_r2e2 <- function(results = NULL,
       message("To install them later, run:")
       message("  install.packages(c('", paste(missing_packages, collapse = "', '"), "'))")
       message("\nNote: You can run validation separately without re-running r2e2:")
-      message("  validate_r2e2(results = my_results, geometry = my_polygons, ...)")
+      message("  validate_r2e2(results = my_results, geometry = my_geometries, ...)")
       message("===============================================================================\n")
       return(invisible(FALSE))
     }
@@ -589,7 +589,7 @@ validate_r2e2 <- function(results = NULL,
       daily_df <- process_data(
         dataframe = df_long,
         input_temporal_resolution = temporal_resolution,
-        average_over_poly_ids = TRUE,
+        average_over_geom_ids = TRUE,
         value_columns = validation_var
       )
       
@@ -614,7 +614,7 @@ validate_r2e2 <- function(results = NULL,
         dataframe = df_long,
         input_temporal_resolution = temporal_resolution,
         output_temporal_resolution = "monthly",
-        average_over_poly_ids = TRUE,
+        average_over_geom_ids = TRUE,
         value_columns = validation_var
       )
       
@@ -692,36 +692,36 @@ validate_r2e2 <- function(results = NULL,
     if (is.null(area_weights)) {
       warning("area_weights is required for Grid Cell Alignment. Skipping.")
     } else {
-      # Sample 5 random polygons
+      # Sample 5 random geometries
       set.seed(123)
       sample_geometry <- target_geometry |>
         dplyr::ungroup() |>
         dplyr::slice_sample(n = min(5, nrow(target_geometry))) |>
-        dplyr::mutate(poly_id = as.character(poly_id))
+        dplyr::mutate(geom_id = as.character(geom_id))
       
       # Convert area_weights to sf object
       centroids_sf <- area_weights |>
         sf::st_as_sf(coords = c("x", "y"), crs = 4326) |>
         sf::st_wrap_dateline(options = c("WRAPDATELINE=YES")) |>
-        dplyr::filter(poly_id %in% sample_geometry$poly_id)
+        dplyr::filter(geom_id %in% sample_geometry$geom_id)
       
       # Plot (suppress warnings about st_point_on_surface for lon/lat data)
       p6 <- suppressWarnings(
         ggplot2::ggplot() +
-          ggplot2::geom_sf(data = centroids_sf, ggplot2::aes(color = factor(poly_id)), size = 0.5, alpha = 0.5) +
+          ggplot2::geom_sf(data = centroids_sf, ggplot2::aes(color = factor(geom_id)), size = 0.5, alpha = 0.5) +
           ggplot2::geom_sf(data = sample_geometry, fill = NA, color = "black", size = 0.1, alpha = 0.5) +
           ggrepel::geom_label_repel(
             data = sample_geometry,
-            ggplot2::aes(label = poly_id, geometry = geometry, color = factor(poly_id)),
+            ggplot2::aes(label = geom_id, geometry = geometry, color = factor(geom_id)),
             stat = "sf_coordinates",
             size = 3,
             box.padding = 3.0,
             nudge_y = 0.2,
             show.legend = FALSE
           ) +
-          ggplot2::scale_color_discrete(name = "poly_id") +
+          ggplot2::scale_color_discrete(name = "geom_id") +
           ggplot2::labs(
-            title = "Polygon Boundaries and Raster Cell Centroids",
+            title = "Geometry Boundaries and Raster Cell Centroids",
             x = "Longitude",
             y = "Latitude"
           ) +
@@ -737,20 +737,20 @@ validate_r2e2 <- function(results = NULL,
     }
   }
   
-  # 5. Grid Cell Count per Polygon ----
-  if (cell_count_per_polygon) {
+  # 5. Grid Cell Count per Geometry ----
+  if (cell_count_per_geometry) {
     if (verbose >= 2) {
       message("\n---------------------------------------------------",
-              "\n   5.5 Grid Cell Count per Polygon",
+              "\n   5.5 Grid Cell Count per Geometry",
               "\n---------------------------------------------------\n")
     }
     
     if (is.null(area_weights)) {
-      warning("area_weights is required for Grid Cell Count per Polygon. Skipping.")
+      warning("area_weights is required for Grid Cell Count per Geometry. Skipping.")
     } else {
       # Calculate cell counts
-      polygon_cell_counts <- area_weights |>
-        dplyr::group_by(poly_id) |>
+      geometry_cell_counts <- area_weights |>
+        dplyr::group_by(geom_id) |>
         dplyr::summarise(cell_count = dplyr::n()) |>
         dplyr::mutate(
           group = dplyr::case_when(
@@ -762,25 +762,25 @@ validate_r2e2 <- function(results = NULL,
         dplyr::arrange(cell_count)
       
       # Summary statistics
-      cell_count_summary <- calculate_summary_statistics(polygon_cell_counts, "cell_count")
+      cell_count_summary <- calculate_summary_statistics(geometry_cell_counts, "cell_count")
       
-      # Identify tiny polygons
+      # Identify tiny geometries
       cell_count_threshold <- 3
-      tiny_polygons <- dplyr::filter(polygon_cell_counts, cell_count <= cell_count_threshold)
+      tiny_geometries <- dplyr::filter(geometry_cell_counts, cell_count <= cell_count_threshold)
       
    
       
       # Density plots
-      p7 <- plot_overall_density(polygon_cell_counts)
+      p7 <- plot_overall_density(geometry_cell_counts)
       print(p7)
       if (!is.null(save_path)) {
-        ggplot2::ggsave(file.path(validation_dir, "cell_counts_per_polygon.png"), p7, width = 10, height = 6)
+        ggplot2::ggsave(file.path(validation_dir, "cell_counts_per_geometry.png"), p7, width = 10, height = 6)
       }
       
       # Detailed plots by group (optional)
-      if (cell_count_per_polygon_detailed) {
+      if (cell_count_per_geometry_detailed) {
         for (group_name in c("Lowest 5%", "Middle 90%", "Highest 5%")) {
-          p_group <- plot_density_by_group(polygon_cell_counts, group_name)
+          p_group <- plot_density_by_group(geometry_cell_counts, group_name)
           print(p_group)
           if (!is.null(save_path)) {
             filename <- paste0("cell_counts_", gsub(" ", "_", tolower(group_name)), ".png")
@@ -790,9 +790,9 @@ validate_r2e2 <- function(results = NULL,
       }
       
       results$cell_counts <- list(
-        counts = polygon_cell_counts,
+        counts = geometry_cell_counts,
         summary = cell_count_summary,
-        tiny_polygons = tiny_polygons
+        tiny_geometries = tiny_geometries
       )
     }
   }

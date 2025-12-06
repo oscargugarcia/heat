@@ -1564,30 +1564,30 @@ get_missing_vals <- function(dt, date_columns, verbose = 1) {
 #'
 #' @param raster A single-layer SpatRaster from which to extract cell information.
 #' @param polygons An sf object containing polygon or point geometries.
-#' @param geom_id_col A string indicating the column name in the polygons object that contains the geometry identifier.
+#' @param polygon_id_col A string indicating the column name in the polygons object that contains the geometry identifier.
 #'
 #' @return A data frame with columns:
-#'   - geom_id: The geometry identifier (renamed from the column specified by geom_id_col).
+#'   - geom_id: The geometry identifier (renamed from the column specified by polygon_id_col).
 #'   - x: The x-coordinate (cell center for polygons, exact coordinate for points).
 #'   - y: The y-coordinate (cell center for polygons, exact coordinate for points).
 #'
 #' @examples
 #' \dontrun{
 #'   # For polygons:
-#'   area_weights <- get_area_weights(env_rast[[1]], polygons, geom_id_col = "geom_id")
+#'   area_weights <- get_area_weights(env_rast[[1]], polygons, polygon_id_col = "geom_id")
 #'   
 #'   # For points:
-#'   area_weights <- get_area_weights(env_rast[[1]], points, geom_id_col = "site_id")
+#'   area_weights <- get_area_weights(env_rast[[1]], points, polygon_id_col = "site_id")
 #'   
 #'   arrow::write_parquet(area_weights, file.path(paths$path_out_folder, "area_weights.parquet"))
 #' }
 #' 
 #' @export
-get_area_weights <- function(raster, polygons, geom_id_col) {
+get_area_weights <- function(raster, polygons, polygon_id_col) {
   
-  # Check that the polygons object contains the specified geom_id_col
-  if (!(geom_id_col %in% names(polygons))) {
-    stop("The polygons object must have a column named ", geom_id_col)
+  # Check that the polygons object contains the specified polygon_id_col
+  if (!(polygon_id_col %in% names(polygons))) {
+    stop("The polygons object must have a column named ", polygon_id_col)
   }
   
   # Check geometry type
@@ -1598,7 +1598,7 @@ get_area_weights <- function(raster, polygons, geom_id_col) {
     # For point geometries, extract coordinates directly
     coords <- st_coordinates(polygons)
     area_weights_df <- data.frame(
-      geom_id = polygons[[geom_id_col]],
+      geom_id = polygons[[polygon_id_col]],
       x = coords[, "X"],
       y = coords[, "Y"]
     )
@@ -1611,7 +1611,7 @@ get_area_weights <- function(raster, polygons, geom_id_col) {
     # Combine the list into a single data frame and add the corresponding polygon id.
     area_weights_df <- do.call(rbind, lapply(seq_along(area_weights_list), function(i) {
       df <- area_weights_list[[i]]
-      df$geom_id <- polygons[[geom_id_col]][i]
+      df$geom_id <- polygons[[polygon_id_col]][i]
       df
     }))
     

@@ -5,8 +5,9 @@
 \title{Validate R2E2 Pipeline Output}
 \usage{
 validate_r2e2(
-  df_long,
-  geometry,
+  results = NULL,
+  df_long = NULL,
+  geometry = NULL,
   area_weights = NULL,
   validation_var,
   validation_var_name,
@@ -15,22 +16,28 @@ validate_r2e2(
   time_series = TRUE,
   summary_stats = TRUE,
   grid_cell_alignment = TRUE,
-  cell_count_per_polygon = TRUE,
-  binned_output = any(df_long$trans_type == "bin")
+  cell_count_per_geometry = TRUE,
+  cell_count_per_geometry_detailed = FALSE,
+  binned_output = NULL,
+  verbose = 1
 )
 }
 \arguments{
-\item{df_long}{Data frame in long format (output from r2e2)}
+\item{results}{Optional list output from r2e2() containing spatial_agg, temp_agg_long, area_weights, etc.
+If provided, the function will automatically select the best data for validation.}
 
-\item{geometry}{sf object containing polygon geometries with poly_id column}
+\item{df_long}{Data frame in long format (output from r2e2). If results is provided, this is ignored.}
 
-\item{area_weights}{Data frame with area weights (including poly_id, x, y columns); required for some checks}
+\item{geometry}{sf object containing geometries with geom_id column}
+
+\item{area_weights}{Data frame with area weights (including geom_id, x, y columns); required for some checks.
+If results is provided, this is extracted automatically.}
 
 \item{validation_var}{Character string specifying which transformed variable to validate (e.g., "degree_1")}
 
 \item{validation_var_name}{Character string describing the variable for plot labels (e.g., "Temperature (°C)")}
 
-\item{save_path}{Optional path to save validation outputs. If provided, creates a 'validation' subfolder}
+\item{save_path}{Optional path to save validation outputs. If NULL (default), plots are only displayed in viewer. If provided, creates a 'validation' subfolder}
 
 \item{spatial_averages}{Logical; run spatial averages check (default TRUE)}
 
@@ -40,9 +47,13 @@ validate_r2e2(
 
 \item{grid_cell_alignment}{Logical; run grid cell alignment check (default TRUE)}
 
-\item{cell_count_per_polygon}{Logical; run cell count per polygon check (default TRUE)}
+\item{cell_count_per_geometry}{Logical; run cell count per geometry check (default TRUE)}
+
+\item{cell_count_per_geometry_detailed}{Logical; show detailed plots by group (default FALSE)}
 
 \item{binned_output}{Logical; run binned output check (default TRUE for bin transformations)}
+
+\item{verbose}{Integer controlling message verbosity: 0 = silent, 1 = concise progress messages, 2 = detailed (default: 1)}
 }
 \value{
 Invisibly returns a list of validation results

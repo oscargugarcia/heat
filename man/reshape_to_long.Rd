@@ -6,7 +6,7 @@
 \usage{
 reshape_to_long(
   wide_dt,
-  id_cols = c("poly_id", "trans_type"),
+  id_cols = c("geom_id", "trans_type"),
   trans_var = "trans_var",
   add_time_columns = TRUE,
   verbose = 1
@@ -18,7 +18,7 @@ reshape_to_long(
 date columns, and possibly other columns.
 \itemize{
 \item id_cols: A character vector of identifier column names that must always be retained.
-Default is c("poly_id", "trans_type").
+Default is c("geom_id", "trans_type").
 \item trans_var: A character string specifying the column name that holds the variable used for subsetting.
 Default is "trans_var".
 \item add_time_columns: Logical. If TRUE (default), additional time columns are added based on the detected temporal resolution.
@@ -43,7 +43,7 @@ merged sequentially into a long-format data.table using keyed joins.
 Optionally, time columns (year, month, day) are added based on the detected temporal resolution.
 }
 \examples{
-  # Suppose wide_dt is a data.table with columns "poly_id", "trans_type", "trans_var",
+  # Suppose wide_dt is a data.table with columns "geom_id", "trans_type", "trans_var",
   # and date columns like "2017-01-01", "2017-01-02", etc.
   long_dt <- reshape_to_long(wide_dt)
 

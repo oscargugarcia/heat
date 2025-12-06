@@ -703,21 +703,21 @@ infer_num_trans_var <- function(trans_type, trans_args) {
 #' aggregated columns 
 #' @param time_steps A vector of dates (or character representations) corresponding to the time steps 
 #' present in the environmental raster subset.
-#' @param geom_id_col A string specifying the column in the polygons object containing the geometry ID.
+#' @param polygon_id_col A string specifying the column in the polygons object containing the polygon ID.
 
 #'
-#' @return A data.table with columns: geom_id, , trans_var, and one 
+#' @return A data.table with columns: poly_id, , trans_var, and one 
 #' column per time step (named by the corresponding time step). Each row represents a polygon and a transformation 
 #' variable.
 #'
 #' @examples
 #' \dontrun{
 #'   # Suppose spatial_agg_raw is the result of exact_extract, time_steps is a vector of dates, and 
-#'   # polygons have an identifier in "geom_id". If spatial_agg_args$append_cols is provided, those columns 
+#'   # polygons have an identifier in "poly_id". If spatial_agg_args$append_cols is provided, those columns 
 #'   # will be reattached.
-#'   cleaned_DT <- clean_spatial_agg_output(spatial_agg_raw, env_rast_time_steps, "geom_id")
+#'   cleaned_DT <- clean_spatial_agg_output(spatial_agg_raw, env_rast_time_steps, "poly_id")
 #' }
-clean_spatial_agg_output <- function(extraction_result, time_steps, polygons, geom_id_col, verbose = 1) {
+clean_spatial_agg_output <- function(extraction_result, time_steps, polygons, polygon_id_col, verbose = 1) {
   
   # Convert extraction_result to a data.table
   extraction_dt <- as.data.table(extraction_result)
@@ -745,7 +745,7 @@ clean_spatial_agg_output <- function(extraction_result, time_steps, polygons, ge
   time_step_names <- as.character(time_steps)
   
   # Get the polygon IDs using the metadata specification.
-  geom_id_vector <- polygons[[ geom_id_col ]]
+  poly_id_vector <- polygons[[ polygon_id_col ]]
   
   # Split the aggregated columns into blocks corresponding to each transformation variable.
   agg_mat <- as.matrix(extraction_dt)
@@ -755,20 +755,20 @@ clean_spatial_agg_output <- function(extraction_result, time_steps, polygons, ge
     dt_j <- as.data.table(agg_mat[, cols, drop = FALSE])
     # Rename the columns using the time step names.
     setnames(dt_j, old = names(dt_j), new = time_step_names)
-    # Append the geom_id column.
-    dt_j[, geom_id := geom_id_vector]
+    # Append the poly_id column.
+    dt_j[, poly_id := poly_id_vector]
     # Create a new column 'trans_var' indicating the transformation variable number.
     dt_j[, trans_var := j]
-    # Reorder columns: geom_id first, then trans_var, then the time step columns.
-    setcolorder(dt_j, c("geom_id", "trans_var", time_step_names))
+    # Reorder columns: poly_id first, then trans_var, then the time step columns.
+    setcolorder(dt_j, c("poly_id", "trans_var", time_step_names))
     dt_j
   })
   
   # Combine all transformation variable blocks.
   combined_DT <- rbindlist(time_steps_list)
   
-  # Finally, sort the combined data.table by geom_id.
-  setorder(combined_DT, geom_id)
+  # Finally, sort the combined data.table by poly_id.
+  setorder(combined_DT, poly_id)
   
   return(combined_DT)
 }
@@ -788,7 +788,7 @@ clean_spatial_agg_output <- function(extraction_result, time_steps, polygons, ge
 #' @param polygons An sf object containing spatial polygons over which the aggregation is performed.
 #' @param agg_weights A raster or a character string (e.g., "area") used as weights in the spatial aggregation.
 #' @param spatial_agg_args A list of arguments to pass to `exact_extract` for spatial aggregation (e.g., aggregation function, stack_apply).
-#' @param geom_id_col The name of the column in the polygons object that identifies each polygon.
+#' @param poly_id_col The name of the column in the polygons object that identifies each polygon.
 #' @param verbose Integer verbosity level (0 = silent, 1 = concise, 2 = detailed).
 #'
 #' @return A cleaned spatial aggregation output as a data table (or data frame) containing the polygon identifiers and aggregated values for each time step.
@@ -796,9 +796,9 @@ clean_spatial_agg_output <- function(extraction_result, time_steps, polygons, ge
 #' @examples
 #' \dontrun{
 #'   result <- trans_spatial_agg_polygons(raster_subset, trans_fun, checked_trans_args,
-#'                                    polygons, agg_weights, spatial_agg_args, geom_id_col, verbose = 1)
+#'                                    polygons, agg_weights, spatial_agg_args, poly_id_col, verbose = 1)
 #' }
-trans_spatial_agg_polygons <- function(raster_subset, trans_fun, checked_trans_args, polygons, agg_weights, spatial_agg_args, geom_id_col, verbose = 1) {
+trans_spatial_agg_polygons <- function(raster_subset, trans_fun, checked_trans_args, polygons, agg_weights, spatial_agg_args, poly_id_col, verbose = 1) {
   
   step2_start <- Sys.time()
   
@@ -846,7 +846,7 @@ trans_spatial_agg_polygons <- function(raster_subset, trans_fun, checked_trans_a
   # raster_time_steps <- as.Date(names(raster_subset))
   raster_time_steps <- names(raster_subset)
   
-  spatial_agg_clean <- clean_spatial_agg_output(spatial_agg_raw, raster_time_steps, polygons, geom_id_col, verbose)
+  spatial_agg_clean <- clean_spatial_agg_output(spatial_agg_raw, raster_time_steps, polygons, poly_id_col, verbose)
   step4_end <- Sys.time()
   if (verbose == 2) {
     message("          Finished. Elapsed time: ",
@@ -868,7 +868,7 @@ trans_spatial_agg_polygons <- function(raster_subset, trans_fun, checked_trans_a
 #' @param points_buffered An sf object containing pre-buffered point geometries (required).
 #' @param agg_weights Not used for point geometries (included for compatibility with polygon version).
 #' @param spatial_agg_args A list of spatial aggregation arguments (included for compatibility).
-#' @param geom_id_col The name of the column in the points_buffered object that identifies each point.
+#' @param poly_id_col The name of the column in the points_buffered object that identifies each point.
 #' @param verbose Integer verbosity level (0 = silent, 1 = concise, 2 = detailed).
 #'
 #' @return A data table containing the point identifiers, transformation variable indicators, and extracted/transformed values for each time step.
@@ -876,7 +876,7 @@ trans_spatial_agg_polygons <- function(raster_subset, trans_fun, checked_trans_a
 #' @examples
 #' \dontrun{
 #'   result <- trans_spatial_agg_points(raster_subset, trans_fun, checked_trans_args,
-#'                                      points_buffered, agg_weights, spatial_agg_args, geom_id_col, verbose = 1)
+#'                                      points_buffered, agg_weights, spatial_agg_args, poly_id_col, verbose = 1)
 #' }
 trans_spatial_agg_points <- function(raster_subset, 
                                           trans_fun, 
@@ -884,7 +884,7 @@ trans_spatial_agg_points <- function(raster_subset,
                                           points_buffered,
                                           agg_weights,
                                           spatial_agg_args, 
-                                          geom_id_col,
+                                          poly_id_col,
                                           verbose = 1) {
   
   step2_start <- Sys.time()
@@ -972,11 +972,11 @@ trans_spatial_agg_points <- function(raster_subset,
   if (identical(trans_fun, "none")) {
     # No transformation: simple reshape
     result_dt <- as.data.table(transformed_values)
-    result_dt[, geom_id := points_buffered[[geom_id_col]][ID]]
+    result_dt[, poly_id := points_buffered[[poly_id_col]][ID]]
     result_dt[, trans_var := 1L]
     result_dt[, ID := NULL]
     
-    setcolorder(result_dt, c("geom_id", "trans_var", value_cols))
+    setcolorder(result_dt, c("poly_id", "trans_var", value_cols))
     
   } else {
     # With transformation: reshape to match polygon output structure
@@ -1009,8 +1009,8 @@ trans_spatial_agg_points <- function(raster_subset,
       dt <- as.data.table(time_values)
       setnames(dt, time_names)
       
-      # Add metadata columns (using "geom_id" as column name for consistency)
-      dt[, geom_id := points_buffered[[geom_id_col]]]
+      # Add metadata columns (using "poly_id" as column name for consistency)
+      dt[, poly_id := points_buffered[[poly_id_col]]]
       dt[, trans_var := as.integer(trans_var_idx)]
       
       result_list[[trans_var_idx]] <- dt
@@ -1020,7 +1020,7 @@ trans_spatial_agg_points <- function(raster_subset,
     result_dt <- rbindlist(result_list)
     
     # Reorder columns to match polygon output
-    setcolorder(result_dt, c("geom_id", "trans_var", time_names))
+    setcolorder(result_dt, c("poly_id", "trans_var", time_names))
   }
   
   step4_end <- Sys.time()
@@ -1056,7 +1056,7 @@ trans_spatial_agg_points <- function(raster_subset,
 #' @param trans_fun A transformation function to be applied to each environmental raster subset.
 #' @param checked_trans_args A list of pre-validated arguments for the transformation function.
 #' @param spatial_agg_args A list of arguments to pass to `exact_extract` for spatial aggregation.
-#' @param geom_id_col The name of the polygon identifier column in the polygons object.
+#' @param poly_id_col The name of the polygon identifier column in the polygons object.
 #' @param weighting_periods A data structure containing information for each weighting period.
 #' @param save_path Optional character string specifying the output directory. Required if save_batch_output = TRUE.
 #' @param sec_weights Logical flag indicating whether to use secondary weight rasters (TRUE) or area weights (FALSE).
@@ -1082,7 +1082,7 @@ trans_spatial_agg_points <- function(raster_subset,
 #' \dontrun{
 #'   result <- trans_spatial_agg(env_rast_list, sec_weight_rast_list, polygons, buffered_extent,
 #'                               trans_type, trans_fun, checked_trans_args, spatial_agg_args, 
-#'                               geom_id_col = "geom_id", weighting_periods, save_path, 
+#'                               poly_id_col = "poly_id", weighting_periods, save_path, 
 #'                               sec_weights = TRUE, max_cells = 3e7)
 #' }
 trans_spatial_agg <- function(env_rast_list,
@@ -1093,7 +1093,7 @@ trans_spatial_agg <- function(env_rast_list,
                               trans_fun,
                               checked_trans_args,
                               spatial_agg_args,
-                              geom_id_col,
+                              poly_id_col,
                               weighting_periods,
                               save_path,
                               sec_weights = TRUE,
@@ -1278,7 +1278,7 @@ trans_spatial_agg <- function(env_rast_list,
             points_buffered = polygons_buffered,
             agg_weights = NULL,
             spatial_agg_args = spatial_agg_args,
-            geom_id_col = geom_id_col,
+            poly_id_col = poly_id_col,
             verbose = verbose
           )
         } else {
@@ -1290,7 +1290,7 @@ trans_spatial_agg <- function(env_rast_list,
             polygons = polygons,
             agg_weights = agg_weights,
             spatial_agg_args = spatial_agg_args,
-            geom_id_col = geom_id_col,
+            poly_id_col = poly_id_col,
             verbose = verbose
           )
         }
@@ -1376,7 +1376,7 @@ trans_spatial_agg <- function(env_rast_list,
         if (is.null(spatial_agg_clean)) {
           spatial_agg_clean <- batch_data
         } else {
-          spatial_agg_clean <- cbind(spatial_agg_clean, batch_data[, !c("geom_id", "trans_var"), with = FALSE])
+          spatial_agg_clean <- cbind(spatial_agg_clean, batch_data[, !c("poly_id", "trans_var"), with = FALSE])
         }
       }
       
@@ -1391,7 +1391,7 @@ trans_spatial_agg <- function(env_rast_list,
       if (length(period_batches) > 1) {
         for (k in 2:length(period_batches)) {
           spatial_agg_clean <- cbind(spatial_agg_clean, 
-                                     period_batches[[k]][, !c("geom_id", "trans_var"), with = FALSE])
+                                     period_batches[[k]][, !c("poly_id", "trans_var"), with = FALSE])
         }
       }
     }
@@ -1400,7 +1400,7 @@ trans_spatial_agg <- function(env_rast_list,
     if (is.null(spatial_agg)) {
       spatial_agg <- spatial_agg_clean
     } else {
-      spatial_agg <- cbind(spatial_agg, spatial_agg_clean[, !c("geom_id", "trans_var"), with = FALSE])
+      spatial_agg <- cbind(spatial_agg, spatial_agg_clean[, !c("poly_id", "trans_var"), with = FALSE])
     }
     
     if (verbose >= 2) {
@@ -1439,7 +1439,7 @@ trans_spatial_agg <- function(env_rast_list,
 #'   - Adds columns from the supplied metadata (a named list) to dt, if provided.
 #'   - Concatenates the transformation arguments (provided as a named list) into a single string,
 #'     stored in the "trans_call" column.
-#'   - Reorders the columns so that key metadata fields appear first: "geom_id", "trans_type", "trans_var"
+#'   - Reorders the columns so that key metadata fields appear first: "poly_id", "trans_type", "trans_var"
 #'     then the metadata columns (if any), followed by "trans_call", and finally any remaining columns.
 #'
 #' @param dt A data.table containing spatial aggregation results.
@@ -1451,7 +1451,7 @@ trans_spatial_agg <- function(env_rast_list,
 #'
 #' @examples
 #' \dontrun{
-#'   dt <- data.table(geom_id = 1:3, trans_var = c("A", "B", "C"), other_col = 1:3)
+#'   dt <- data.table(poly_id = 1:3, trans_var = c("A", "B", "C"), other_col = 1:3)
 #'   trans_type <- "polynomial"
 #'   metadata <- list(source = "ERA5", resolution = "0.25")
 #'   trans_args <- list(degree = 3, raw = TRUE)
@@ -1474,7 +1474,7 @@ add_metadata_cols <- function(dt, trans_type, metadata = NULL, trans_args) {
   dt[, trans_call := trans_args_str]
   
   # Reorder columns: base columns first, then any remaining columns.
-  base_cols <- c("geom_id", "trans_type", "trans_var", names(metadata), "trans_call")
+  base_cols <- c("poly_id", "trans_type", "trans_var", names(metadata), "trans_call")
   # If metadata is NULL, omit it from base_cols
   if (is.null(metadata)) {
     base_cols <- setdiff(base_cols, names(metadata))
@@ -1497,18 +1497,18 @@ add_metadata_cols <- function(dt, trans_type, metadata = NULL, trans_args) {
 #' This function checks the specified date columns in a data.table (or data.frame) for missing (NA) values.
 #' It first makes a shallow copy of the input data.table to avoid issues with internal self-references.
 #' The function then flags rows where any of the specified date columns are NA, extracts the unique polygon IDs
-#' from the "geom_id" column for those rows, and prints a warning if any are found. If no missing values are detected,
+#' from the "poly_id" column for those rows, and prints a warning if any are found. If no missing values are detected,
 #' a message is printed indicating that all polygons have complete date data.
 #'
-#' @param dt A data.table (or data.frame) containing the date columns and a "geom_id" column.
+#' @param dt A data.table (or data.frame) containing the date columns and a "poly_id" column.
 #' @param date_columns A character vector specifying the names of the date columns to check.
 #'
-#' @return A vector of unique polygon IDs (from the "geom_id" column) for which at least one specified date column is missing.
+#' @return A vector of unique polygon IDs (from the "poly_id" column) for which at least one specified date column is missing.
 #'
 #' @examples
 #' \dontrun{
 #'   library(data.table)
-#'   dt <- data.table(geom_id = 1:5,
+#'   dt <- data.table(poly_id = 1:5,
 #'                    "2020-01-01" = c(1, NA, 3, 4, NA),
 #'                    "2020-01-02" = c(NA, 2, NA, 4, 5))
 #'   missing_polys <- get_missing_vals(dt, date_columns = c("2020-01-01", "2020-01-02"))
@@ -1523,16 +1523,16 @@ get_missing_vals <- function(dt, date_columns, verbose = 1) {
     dt <- as.data.table(dt)
   }
   
-  # Ensure the 'geom_id' column exists.
-  if (!("geom_id" %in% names(dt))) {
-    stop("Column 'geom_id' not found in dt.")
+  # Ensure the 'poly_id' column exists.
+  if (!("poly_id" %in% names(dt))) {
+    stop("Column 'poly_id' not found in dt.")
   }
   
   # Identify rows with any NA in the specified date columns.
   dt[, any_na := Reduce(`|`, lapply(.SD, is.na)), .SDcols = date_columns]
   
   # Extract unique polygon IDs for rows where any_na is TRUE.
-  polys_with_na <- unique(dt[any_na == TRUE, geom_id])
+  polys_with_na <- unique(dt[any_na == TRUE, poly_id])
   
   # Remove the temporary column.
   dt[, any_na := NULL]
@@ -1564,30 +1564,30 @@ get_missing_vals <- function(dt, date_columns, verbose = 1) {
 #'
 #' @param raster A single-layer SpatRaster from which to extract cell information.
 #' @param polygons An sf object containing polygon or point geometries.
-#' @param geom_id_col A string indicating the column name in the polygons object that contains the geometry identifier.
+#' @param polygon_id_col A string indicating the column name in the polygons object that contains the geometry identifier.
 #'
 #' @return A data frame with columns:
-#'   - geom_id: The geometry identifier (renamed from the column specified by geom_id_col).
+#'   - poly_id: The geometry identifier (renamed from the column specified by polygon_id_col).
 #'   - x: The x-coordinate (cell center for polygons, exact coordinate for points).
 #'   - y: The y-coordinate (cell center for polygons, exact coordinate for points).
 #'
 #' @examples
 #' \dontrun{
 #'   # For polygons:
-#'   area_weights <- get_area_weights(env_rast[[1]], polygons, geom_id_col = "geom_id")
+#'   area_weights <- get_area_weights(env_rast[[1]], polygons, polygon_id_col = "poly_id")
 #'   
 #'   # For points:
-#'   area_weights <- get_area_weights(env_rast[[1]], points, geom_id_col = "site_id")
+#'   area_weights <- get_area_weights(env_rast[[1]], points, polygon_id_col = "site_id")
 #'   
 #'   arrow::write_parquet(area_weights, file.path(paths$path_out_folder, "area_weights.parquet"))
 #' }
 #' 
 #' @export
-get_area_weights <- function(raster, polygons, geom_id_col) {
+get_area_weights <- function(raster, polygons, polygon_id_col) {
   
-  # Check that the polygons object contains the specified geom_id_col
-  if (!(geom_id_col %in% names(polygons))) {
-    stop("The polygons object must have a column named ", geom_id_col)
+  # Check that the polygons object contains the specified polygon_id_col
+  if (!(polygon_id_col %in% names(polygons))) {
+    stop("The polygons object must have a column named ", polygon_id_col)
   }
   
   # Check geometry type
@@ -1598,7 +1598,7 @@ get_area_weights <- function(raster, polygons, geom_id_col) {
     # For point geometries, extract coordinates directly
     coords <- st_coordinates(polygons)
     area_weights_df <- data.frame(
-      geom_id = polygons[[geom_id_col]],
+      poly_id = polygons[[polygon_id_col]],
       x = coords[, "X"],
       y = coords[, "Y"]
     )
@@ -1611,12 +1611,12 @@ get_area_weights <- function(raster, polygons, geom_id_col) {
     # Combine the list into a single data frame and add the corresponding polygon id.
     area_weights_df <- do.call(rbind, lapply(seq_along(area_weights_list), function(i) {
       df <- area_weights_list[[i]]
-      df$geom_id <- polygons[[geom_id_col]][i]
+      df$poly_id <- polygons[[polygon_id_col]][i]
       df
     }))
     
-    # Select only the desired columns: geom_id, x, and y.
-    area_weights_df <- dplyr::select(area_weights_df, geom_id, x, y)
+    # Select only the desired columns: poly_id, x, and y.
+    area_weights_df <- dplyr::select(area_weights_df, poly_id, x, y)
   }
   
   return(area_weights_df)
@@ -1641,12 +1641,12 @@ get_area_weights <- function(raster, polygons, geom_id_col) {
 #'   aggregation function (default: sum) is applied row-wise to columns with the same key.
 #'
 #'   By default, the function retains all non-date columns (metadata) present in the input.
-#'   If `keep_metadata = FALSE`, only the identifier columns (defined as "geom_id" and "trans_var")
+#'   If `keep_metadata = FALSE`, only the identifier columns (defined as "poly_id" and "trans_var")
 #'   are retained.
 #'
 #' @param:
 #'   - spatial_output: A data.table or data.frame produced by spatial aggregation, containing
-#'         identifier columns (e.g., "geom_id" and "trans_var") and additional columns whose names
+#'         identifier columns (e.g., "poly_id" and "trans_var") and additional columns whose names
 #'         represent dates in one of the formats: "YYYY", "YYYY-MM", or "YYYY-MM-DD". Any additional
 #'         columns are assumed to be metadata.
 #'   - agg_args: A list of aggregation arguments including:
@@ -1654,7 +1654,7 @@ get_area_weights <- function(raster, polygons, geom_id_col) {
 #'         - temp_agg_fun: function; the aggregation function to apply (default is sum if not specified).
 #'         - Any other arguments are passed to the aggregation function.
 #'   - keep_metadata: Logical (default TRUE). If TRUE, retains all non-date columns from spatial_output.
-#'                    If FALSE, only the identifier columns ("geom_id" and "trans_var") are retained.
+#'                    If FALSE, only the identifier columns ("poly_id" and "trans_var") are retained.
 #'
 #' @return:
 #'   - A wide-format data.table with the identifier columns (and, if keep_metadata = TRUE, additional metadata columns)
@@ -1676,7 +1676,7 @@ temp_agg <- function(spatial_output, agg_args, keep_metadata = TRUE, verbose = 1
   out_temp_res <- agg_args$out_temp_res
   
   # Define identifier columns.
-  id_vars <- c("geom_id", "trans_var", "trans_type")
+  id_vars <- c("poly_id", "trans_var", "trans_type")
   
   # Identify all columns other than the id_vars.
   other_cols <- setdiff(names(spatial_output), id_vars)
@@ -1717,7 +1717,7 @@ temp_agg <- function(spatial_output, agg_args, keep_metadata = TRUE, verbose = 1
   }
   
   # # Define identifier columns.
-  # id_vars <- c("geom_id", "trans_var", "trans_type")
+  # id_vars <- c("poly_id", "trans_var", "trans_type")
   # 
   # # Identify all columns other than the id_vars.
   # other_cols <- setdiff(names(spatial_output), id_vars)
@@ -1767,8 +1767,8 @@ temp_agg <- function(spatial_output, agg_args, keep_metadata = TRUE, verbose = 1
   # Combine the identifier (and metadata) columns with the aggregated results.
   result_dt <- cbind(dt_ids, agg_dt)
   
-  # Order the result by geom_id.
-  setorder(result_dt, geom_id)
+  # Order the result by poly_id.
+  setorder(result_dt, poly_id)
   
   temp_agg_end <- Sys.time()
   if (verbose >= 2) {
@@ -1869,36 +1869,36 @@ rename_trans_var <- function(spatial_agg, trans_type, trans_args = list(), verbo
 #' This function optionally appends additional columns from an sf object (polygons) to a 
 #' long-format spatial aggregation data frame (`temp_agg_long`). It does so by:
 #'   1. Dropping the geometry from the polygons.
-#'   2. Creating a new column named "geom_id" using the column specified by `geom_id_col`.
-#'   3. Checking for column name conflicts (other than "geom_id") and renaming conflicting
+#'   2. Creating a new column named "poly_id" using the column specified by `poly_id_col`.
+#'   3. Checking for column name conflicts (other than "poly_id") and renaming conflicting
 #'      columns in polygons by appending '_SPATIAL_FILE'.
-#'   4. Selecting the "geom_id" and the specified appended columns.
-#'   5. Left joining these columns to `temp_agg_long` by "geom_id".
-#'   6. Relocating the appended columns to immediately follow the "geom_id" column.
+#'   4. Selecting the "poly_id" and the specified appended columns.
+#'   5. Left joining these columns to `temp_agg_long` by "poly_id".
+#'   6. Relocating the appended columns to immediately follow the "poly_id" column.
 #'
-#' @param temp_agg_long A data frame containing long-format spatial aggregation results that includes a "geom_id" column.
+#' @param temp_agg_long A data frame containing long-format spatial aggregation results that includes a "poly_id" column.
 #' @param polygons An sf object containing spatial polygon data and additional attributes.
-#' @param geom_id_col A string representing the column name in `polygons` that uniquely identifies each polygon.
+#' @param poly_id_col A string representing the column name in `polygons` that uniquely identifies each polygon.
 #' @param appended_cols A character vector of column names in `polygons` to append to `temp_agg_long`.
 #'
-#' @return A data frame with the appended columns merged (and relocated immediately after "geom_id").
+#' @return A data frame with the appended columns merged (and relocated immediately after "poly_id").
 #'
 #' @examples
 #' \dontrun{
-#'   # Suppose temp_agg_long has a column "geom_id", and polygons is an sf object with an identifier
+#'   # Suppose temp_agg_long has a column "poly_id", and polygons is an sf object with an identifier
 #'   # column "ID" and additional columns "region" and "area" that you want to add:
-#'   result <- add_appended_cols(temp_agg_long, polygons, geom_id_col = "ID", appended_cols = c("region", "area"))
+#'   result <- add_appended_cols(temp_agg_long, polygons, poly_id_col = "ID", appended_cols = c("region", "area"))
 #' }
-add_appended_cols <- function(temp_agg_long, polygons, geom_id_col, appended_cols) {
+add_appended_cols <- function(temp_agg_long, polygons, poly_id_col, appended_cols) {
   
   if (!is.null(appended_cols)) {
     # Get column names from both datasets
     temp_agg_cols <- names(temp_agg_long)
     polygons_cols <- names(polygons)
     
-    # Find conflicting column names (excluding geom_id which will be the join key)
+    # Find conflicting column names (excluding poly_id which will be the join key)
     conflicting_cols <- intersect(temp_agg_cols, polygons_cols)
-    conflicting_cols <- conflicting_cols[conflicting_cols != "geom_id"]
+    conflicting_cols <- conflicting_cols[conflicting_cols != "poly_id"]
     
     # Start with polygons data
     polygons_data <- polygons %>% st_drop_geometry()
@@ -1933,10 +1933,10 @@ add_appended_cols <- function(temp_agg_long, polygons, geom_id_col, appended_col
     temp_agg_long <- left_join(
       temp_agg_long,
       polygons_data %>% 
-        mutate(geom_id = .data[[geom_id_col]]) %>% 
-        dplyr::select(all_of(c("geom_id", appended_cols))),
-      by = "geom_id"
-    ) %>% relocate(any_of(appended_cols), .after = "geom_id")
+        mutate(poly_id = .data[[poly_id_col]]) %>% 
+        dplyr::select(all_of(c("poly_id", appended_cols))),
+      by = "poly_id"
+    ) %>% relocate(any_of(appended_cols), .after = "poly_id")
   }
   
   return(temp_agg_long)

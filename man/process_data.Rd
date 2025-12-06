@@ -10,9 +10,9 @@ process_data(
   output_temporal_resolution = NULL,
   filter_start_date = NULL,
   filter_end_date = NULL,
-  filter_poly_ids = NULL,
+  filter_geom_ids = NULL,
   average_over_time = FALSE,
-  average_over_poly_ids = FALSE,
+  average_over_geom_ids = FALSE,
   value_columns
 )
 }
