@@ -11,7 +11,8 @@ trans_spatial_agg_polygons(
   polygons,
   agg_weights,
   spatial_agg_args,
-  poly_id_col
+  poly_id_col,
+  verbose = 1
 )
 }
 \arguments{
@@ -28,6 +29,8 @@ trans_spatial_agg_polygons(
 \item{spatial_agg_args}{A list of arguments to pass to \code{exact_extract} for spatial aggregation (e.g., aggregation function, stack_apply).}
 
 \item{poly_id_col}{The name of the column in the polygons object that identifies each polygon.}
+
+\item{verbose}{Integer verbosity level (0 = silent, 1 = concise, 2 = detailed).}
 }
 \value{
 A cleaned spatial aggregation output as a data table (or data frame) containing the polygon identifiers and aggregated values for each time step.
@@ -38,6 +41,6 @@ This helper function processes a raster (subset) by applying a specified transfo
 \examples{
 \dontrun{
   result <- trans_spatial_agg_polygons(raster_subset, trans_fun, checked_trans_args,
-                                   polygons, agg_weights, spatial_agg_args, poly_id_col)
+                                   polygons, agg_weights, spatial_agg_args, poly_id_col, verbose = 1)
 }
 }

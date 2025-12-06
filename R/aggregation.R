@@ -717,7 +717,7 @@ infer_num_trans_var <- function(trans_type, trans_args) {
 #'   # will be reattached.
 #'   cleaned_DT <- clean_spatial_agg_output(spatial_agg_raw, env_rast_time_steps, "poly_id")
 #' }
-clean_spatial_agg_output <- function(extraction_result, time_steps, polygons, polygon_id_col) {
+clean_spatial_agg_output <- function(extraction_result, time_steps, polygons, polygon_id_col, verbose = 1) {
   
   # Convert extraction_result to a data.table
   extraction_dt <- as.data.table(extraction_result)
@@ -725,7 +725,9 @@ clean_spatial_agg_output <- function(extraction_result, time_steps, polygons, po
   
   # Determine the number of time steps.
   n_time_steps <- length(time_steps)
-  message("              Number of time steps: ", n_time_steps)
+  if (verbose == 2) {
+    message("              Number of time steps: ", n_time_steps)
+  }
   
   # Check that the number of aggregated columns is a multiple of n_time_steps.
   n_total_cols <- ncol(extraction_dt)
@@ -735,7 +737,9 @@ clean_spatial_agg_output <- function(extraction_result, time_steps, polygons, po
          "This may indicate that appended columns were not properly separated.")
   }
   n_trans <- n_total_cols / n_time_steps
-  message("              Inferred number of transformation variables: ", n_trans)
+  if (verbose == 2) {
+    message("              Inferred number of transformation variables: ", n_trans)
+  }
   
   # Convert time_steps to character names.
   time_step_names <- as.character(time_steps)
@@ -800,27 +804,27 @@ trans_spatial_agg_polygons <- function(raster_subset, trans_fun, checked_trans_a
   
   
   if (identical(trans_fun, "none")) {
-    if (verbose >= 2) {
+    if (verbose == 2) {
       message(" [Step 2] Transformation skipped. trans_type = 'none'\n")
     }
     transformed_raster_subset <- raster_subset
     
   } else {
-    if (verbose >= 2) {
+    if (verbose == 2) {
       message(" [Step 2] Applying transformation to environmental raster...")
     }
     transformed_raster_subset <- do.call(terra::app,
                                        c(list(x = raster_subset, fun = trans_fun),
                                          checked_trans_args))
     step2_end <- Sys.time()
-    if (verbose >= 2) {
+    if (verbose == 2) {
       message("          Finished. Elapsed time: ",
               round(difftime(step2_end, step2_start, units = "secs"), 2), " seconds.")
     }
   }
 
   step3_start <- Sys.time()
-  if (verbose >= 2) {
+  if (verbose == 2) {
     message(" [Step 3] Spatial aggregation with exact_extract...")
   }
   spatial_agg_raw <- do.call(exact_extract,
@@ -830,21 +834,21 @@ trans_spatial_agg_polygons <- function(raster_subset, trans_fun, checked_trans_a
                                spatial_agg_args,
                                progress = FALSE))
   step3_end <- Sys.time()
-  if (verbose >= 2) {
+  if (verbose == 2) {
     message("          Finished. Elapsed time: ",
             round(difftime(step3_end, step3_start, units = "secs"), 2), " seconds.")
   }
 
   step4_start <- Sys.time()
-  if (verbose >= 2) {
+  if (verbose == 2) {
     message(" [Step 4] Cleaning spatial aggregation output...")
   }
   # raster_time_steps <- as.Date(names(raster_subset))
   raster_time_steps <- names(raster_subset)
   
-  spatial_agg_clean <- clean_spatial_agg_output(spatial_agg_raw, raster_time_steps, polygons, poly_id_col)
+  spatial_agg_clean <- clean_spatial_agg_output(spatial_agg_raw, raster_time_steps, polygons, poly_id_col, verbose)
   step4_end <- Sys.time()
-  if (verbose >= 2) {
+  if (verbose == 2) {
     message("          Finished. Elapsed time: ",
             round(difftime(step4_end, step4_start, units = "secs"), 2), " seconds.")
   }
@@ -885,7 +889,7 @@ trans_spatial_agg_points <- function(raster_subset,
   
   step2_start <- Sys.time()
 
-  if (verbose >= 2) {
+  if (verbose == 2) {
     message(" [Step 2] Extracting raster values using exact_extract...")
   }
 
@@ -912,7 +916,7 @@ trans_spatial_agg_points <- function(raster_subset,
   extracted_raw <- cbind(ID = seq_len(nrow(points_buffered)), extracted_df)
   
   step2_end <- Sys.time()
-  if (verbose >= 2) {
+  if (verbose == 2) {
     message("          Finished extraction. Elapsed time: ",
             round(difftime(step2_end, step2_start, units = "secs"), 2), " seconds.")
   }
@@ -925,13 +929,13 @@ trans_spatial_agg_points <- function(raster_subset,
   value_cols <- setdiff(names(extracted_raw), "ID")
   
   if (identical(trans_fun, "none")) {
-    if (verbose >= 2) {
+    if (verbose == 2) {
       message(" [Step 3] Transformation skipped. trans_type = 'none'")
     }
     transformed_values <- extracted_raw
     
   } else {
-    if (verbose >= 2) {
+    if (verbose == 2) {
       message(" [Step 3] Applying transformation to extracted values...")
     }
     
@@ -953,7 +957,7 @@ trans_spatial_agg_points <- function(raster_subset,
   }
   
   step3_end <- Sys.time()
-  if (verbose >= 2) {
+  if (verbose == 2) {
     message("          Finished transformation. Elapsed time: ",
             round(difftime(step3_end, step3_start, units = "secs"), 2), " seconds.")
   }
@@ -961,7 +965,7 @@ trans_spatial_agg_points <- function(raster_subset,
   
   # Step 4: Format output to match polygon version structure
   step4_start <- Sys.time()
-  if (verbose >= 2) {
+  if (verbose == 2) {
     message(" [Step 4] Cleaning output...")
   }
   
@@ -1020,7 +1024,7 @@ trans_spatial_agg_points <- function(raster_subset,
   }
   
   step4_end <- Sys.time()
-  if (verbose >= 2) {
+  if (verbose == 2) {
     message("          Finished formatting. Elapsed time: ",
             round(difftime(step4_end, step4_start, units = "secs"), 2), " seconds.")
   }
@@ -1163,8 +1167,10 @@ trans_spatial_agg <- function(env_rast_list,
     }
     
     period_start <- Sys.time()
-    if (verbose >= 1) {
+    if (verbose == 1) {
       cat("  Period ", i, "/", length(env_rast_list), ": ", weighting_periods$Date_Range[i], "\n", sep = "")
+    } else if (verbose == 2) {
+      message("\n -------------------\n Period ", i, ": ", weighting_periods$Date_Range[i], "\n")
     }
     # Step 1: Secondary Weight Raster Processing
     if (sec_weights) {
@@ -1197,7 +1203,7 @@ trans_spatial_agg <- function(env_rast_list,
       
       # Initialize progress bar for multiple batches
       pb <- tryCatch({
-        if (verbose >= 1) {
+        if (verbose == 1) {
           progress::progress_bar$new(
             format = "  [:bar] :percent | Batch :current/:total | ETA: :eta",
             total = num_batches,
@@ -1210,7 +1216,7 @@ trans_spatial_agg <- function(env_rast_list,
           NULL
         }
       }, error = function(e) {
-        if (verbose >= 1) {
+        if (verbose == 1) {
           message("Note: progress package not available, using message-based progress")
         }
         NULL
@@ -1292,7 +1298,7 @@ trans_spatial_agg <- function(env_rast_list,
         if (!is.null(pb)) {
           pb$tick(1)  # Update progress after batch completes
           flush.console()  # Ensure update is displayed
-        } else {
+        } else if (verbose > 0) {
           message("  Completed batch ", j, "/", num_batches)
         }
         
@@ -1532,7 +1538,9 @@ get_missing_vals <- function(dt, date_columns, verbose = 1) {
   dt[, any_na := NULL]
   
   if (length(polys_with_na) > 0) {
-    if (verbose >= 2) {
+    if (verbose == 1) {
+      message("   Missing values detected in ", length(polys_with_na), " polygon(s).")
+    } else if (verbose >= 2) {
       message("The following polygon(s) have missing values in at least one date column. \n  This can happen if all cells in the environmental raster that a polygon covers are missing values. This is often the case for islands. \n  Polygon IDs: ", 
               paste(polys_with_na, collapse = ", "))    # print(polys_with_na)
     }

@@ -37,7 +37,6 @@ NULL
 #' @param knots A numeric vector specifying the knot positions for splines 
 #'              (required if trans_type = "natural_spline" or "b_spline").
 #'
-#' @param trans_args A list of additional parameters to be passed to the transformation
 #' @param trans_args A list of additional custom parameters to be passed to the transformation
 #'                   function (e.g., Boundary.knots for splines). Optional. The provided degree, breaks, or knots
 #'                   parameters will be automatically added to this list, depending on the trans_type.
@@ -72,12 +71,6 @@ NULL
 #'                   Wide format has one row per polygon with time steps as separate columns.
 #'                   Long format has one row per polygon-time combination with time in rows.
 #'                       
-#' @param run_control_checks A logical value indicating whether to generate control check
-#'                  reports for data validation (default is TRUE).
-#'
-#' @param run_control_checks A logical value indicating whether to generate control check
-#'                  reports for data validation (default is TRUE).
-#'                       
 #' @param max_cells A numeric value representing the maximum number of raster cells that
 #'                  can be processed at once (default is 3e7).
 #'
@@ -94,15 +87,19 @@ NULL
 #'
 #' @param compression A character string specifying the compression algorithm for parquet
 #'                    files (default is 'zstd').
-#'                       
-#' @param control_checks_rmd A character string specifying the name of the RMD template
-#'                          file to look for in the utils folder (default is "02_control_checks_source_template.Rmd")
-#'                          
-#' @param selected_trans_var The name of the transformation variable to be used in the report.
+#'                         
+#'                         
+#' @param validation A logical value indicating whether to run validation checks
+#'                  for data quality control (default is TRUE).
+#'                  
+#' @param validation_var The name of the transformation variable to be used in validation plots.
 #'                           (default is 'degree_1' but if not found, it will use the first detected transformation variable)
 #'                           
-#' @param trans_var_description A character string describing the transformation variable
+#' @param validation_var_name A character string describing the transformation variable
 #'                             for plot labels (default is "Temperature (C°)")
+#'
+#' @param verbose Integer controlling message verbosity: 0 = silent, 1 = concise progress messages, 
+#'                2 = detailed messages (default: 1). This applies to both the r2e2 pipeline and validation checks.
 #'
 #'
 #' @details The function performs the following main operations:
@@ -134,16 +131,15 @@ r2e2 <- function(env_rast,
                  spatial_agg_args = NULL,
                  save_path = NULL,
                  out_format = "all",
-                 run_control_checks = TRUE,
                  max_cells = 3e7,
                  metadata = NULL,
                  save_console_output = FALSE,
                  save_batch_output = TRUE,
                  overwrite_batch_output = FALSE,
                  compression = 'zstd',
-                 control_checks_rmd = "02_control_checks_source_template.Rmd",
-                 selected_trans_var = 'degree_1',
-                 trans_var_description = "Temperature (C°)",
+                 validation = TRUE,
+                 validation_var = 'degree_1',
+                 validation_var_name = "Temperature (C°)",
                  verbose = 1) {
   
   # Check if output path is provided
@@ -169,7 +165,6 @@ r2e2 <- function(env_rast,
   if (!save_path_provided) {
     # Disable operations that require file output
     save_console_output <- FALSE
-    run_control_checks <- FALSE
     save_batch_output <- FALSE
   }
   
@@ -492,12 +487,12 @@ r2e2 <- function(env_rast,
             "\n---------------------------------------------------\n")
   }
   
+  # Rename transformation variable
+  spatial_agg <- rename_trans_var(spatial_agg, trans_type, checked_trans_args, verbose = verbose)
+  
   # Check for any polygons with missing values
   date_cols <- get_date_cols(spatial_agg)
   poly_ids_missing_vals <- get_missing_vals(spatial_agg, date_cols, verbose = verbose)
-  
-  # Rename transformation variable
-  spatial_agg <- rename_trans_var(spatial_agg, trans_type, checked_trans_args, verbose = verbose)
   
   # Add metadata columns
   spatial_agg <- add_metadata_cols(spatial_agg, trans_type, metadata, trans_args)
@@ -670,39 +665,55 @@ r2e2 <- function(env_rast,
   }
   gc(verbose = FALSE)
   
-  # ---- 6. Control Checks ----------------------------------------------------------
+  # ---- 6. Validation ----------------------------------------------------------
   
   if (verbose >= 2) {
     message("\n===========================================================================",
-            "\n 5. Control Checks",
+            "\n 5. Validation",
             "\n===========================================================================\n")
   }
   
-  # Check if control checks should be run
-  if (!run_control_checks) {
+  # Check if validation should be run
+  if (!validation) {
     if (verbose >= 2) {
-      if (!save_path_provided) {
-        message("Control checks skipped (no output path provided).\n")
-      } else {
-        message("Control checks skipped. If control checks are desired, set run_control_checks = TRUE.\n")
-      }
+      message("Validation skipped. If validation is desired, set validation = TRUE.\n")
     }
     return(results)
   } else {
     if (verbose >= 1) {
-      message("\nRunning control checks...\n")
+      message("5. Validation")
     }
-  
-  # Run control checks on the long format data
-  control_checks(
-    df_long = temp_agg_long,
-    polygons = polygons,
-    area_weights = area_weights,
-    paths = paths,
-    poly_id_col = poly_id_col,
-    selected_trans_var = selected_trans_var,
-    trans_var_description = trans_var_description,
-    control_checks_rmd = control_checks_rmd)
+    
+    # Run validation checks with error handling to prevent r2e2 from breaking
+    # This ensures r2e2 completes even if validation fails
+    tryCatch({
+      # Prepare geometry for validation by renaming ID column to poly_id
+      validation_geometry <- polygons
+      if (poly_id_col != "poly_id") {
+        validation_geometry <- validation_geometry %>%
+          dplyr::rename(poly_id = !!rlang::sym(poly_id_col))
+      }
+      
+      validate_r2e2(
+        results = results,
+        geometry = validation_geometry,
+        validation_var = validation_var,
+        validation_var_name = validation_var_name,
+        save_path = save_path,
+        spatial_averages = TRUE,
+        time_series = TRUE,
+        summary_stats = TRUE,
+        grid_cell_alignment = TRUE,
+        cell_count_per_polygon = TRUE,
+        cell_count_per_polygon_detailed = FALSE,
+        binned_output = (trans_type == "bin"),
+        verbose = verbose
+      )
+    }, error = function(e) {
+      warning("Validation failed: ", e$message, "\n",
+              "Results have been returned successfully. ",
+              "You can run validation separately: validate_r2e2(results = my_results, geometry = my_polygons, ...)")
+    })
   }
   
   # ---- 7. Save Console Output ----------------------------------------------------------

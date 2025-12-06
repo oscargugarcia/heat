@@ -205,7 +205,7 @@ test_transformation <- function(trans_type, trans_args, baseline_dir,
       sec_weight_rast = sec_weight_rast,
       boundary_dates = boundary_dates,
       out_format = "long",
-      run_control_checks = FALSE,
+      validation = FALSE,
       save_console_output = FALSE,
       verbose = 0
     )

@@ -4,34 +4,34 @@
 \alias{check_trans}
 \title{Check Transformation Function Arguments}
 \usage{
-check_trans(fun, args, verbose = 1)
+check_trans(fun, args, trans_type = NULL, verbose = 1)
 }
 \arguments{
-\item{:}{\itemize{
-\item fun: (function) The transformation function to be used (e.g., stats::poly, splines::bs).
-\itemize{
-\item args: (list) A list of arguments intended for the transformation function.
-}
-}}
+\item{fun}{The transformation function to be used (e.g., stats::poly, splines::bs)}
+
+\item{args}{A list of arguments intended for the transformation function}
+
+\item{trans_type}{A character string indicating the transformation type for validation}
+
+\item{verbose}{Integer verbosity level (0 = silent, 1 = concise, 2 = detailed)}
 }
 \value{
-:
-\itemize{
-\item A (possibly modified) list of arguments, ensuring that required conditions (such as raw = TRUE for poly)
-are met.
-}
+A (possibly modified) list of arguments, ensuring that required conditions are met
 }
 \description{
 This function verifies that the supplied transformation function is valid and that its
-arguments meet the required conditions for processing. In particular, it checks that:
-- The provided object is a function.
-- The function includes an argument named "x".
-- If the function is stats::poly (used for polynomial transformations), it forces the
-argument 'raw' to TRUE.
+arguments meet the required conditions for processing. It validates that:
+- The provided object is a function (or "none")
+- The function includes an argument named "x"
+- The correct arguments are provided for each transformation type:
+* polynomial: requires 'degree'
+* bin: requires 'breaks'
+* natural_spline/b_spline: requires 'knots'
+- If the function is stats::poly, it forces 'raw' to TRUE
+- If the function is create_bins, it sorts the breaks
 }
 \examples{
   # Example for a polynomial transformation:
-  trans_args <- list(degree = 3)
-  updated_args <- check_trans(stats::poly, trans_args)
+  updated_args <- check_trans(stats::poly, list(degree = 3), "polynomial")
   # updated_args now contains degree = 3 and raw = TRUE.
 }

@@ -9,23 +9,26 @@ r2e2(
   polygons,
   poly_id_col = NULL,
   trans_type,
-  trans_args,
-  temp_agg_args,
+  degree = NULL,
+  breaks = NULL,
+  knots = NULL,
+  trans_args = list(),
+  out_temp_res,
+  temp_agg_fun = "mean",
   sec_weight_rast = NULL,
   boundary_dates = NULL,
   spatial_agg_args = NULL,
   save_path = NULL,
   out_format = "all",
-  run_control_checks = TRUE,
   max_cells = 3e+07,
   metadata = NULL,
   save_console_output = FALSE,
   save_batch_output = TRUE,
   overwrite_batch_output = FALSE,
   compression = "zstd",
-  control_checks_rmd = "02_control_checks_source_template.Rmd",
-  selected_trans_var = "degree_1",
-  trans_var_description = "Temperature (C°)",
+  validation = TRUE,
+  validation_var = "degree_1",
+  validation_var_name = "Temperature (C°)",
   verbose = 1
 )
 }
@@ -44,13 +47,25 @@ column will be created and used as the polygon ID,
 and all other columns are kept in the output.}
 
 \item{trans_type}{A character string indicating the type of transformation to apply
-to the raster data (e.g., "polynomial", "bin", etc.).}
+to the raster data (e.g., "polynomial", "bin", "natural_spline", "b_spline", "none").}
 
-\item{trans_args}{A list of additional parameters to be passed to the transformation
-function (e.g., polynomial degree).}
+\item{degree}{An integer specifying the polynomial degree (required if trans_type = "polynomial").}
 
-\item{temp_agg_args}{A list containing parameters for temporal aggregation, including
-the output temporal resolution (out_temp_res) and aggregation function.}
+\item{breaks}{A numeric vector specifying the bin breakpoints (required if trans_type = "bin").}
+
+\item{knots}{A numeric vector specifying the knot positions for splines
+(required if trans_type = "natural_spline" or "b_spline").}
+
+\item{trans_args}{A list of additional custom parameters to be passed to the transformation
+function (e.g., Boundary.knots for splines). Optional. The provided degree, breaks, or knots
+parameters will be automatically added to this list, depending on the trans_type.}
+
+\item{out_temp_res}{A character string specifying the output temporal resolution.
+Options are "daily", "monthly", or "yearly" (required).}
+
+\item{temp_agg_fun}{A character string specifying the temporal aggregation function.
+Options are "mean" (default) or "sum". If the output temporal resolution is the same as
+the input (daily), no temporal aggregation is performed.}
 
 \item{sec_weight_rast}{Either a character string specifying the directory path to secondary
 weight rasters, OR a SpatRaster object containing the weight data.
@@ -75,9 +90,6 @@ When provided, area weights are automatically saved.}
 Wide format has one row per polygon with time steps as separate columns.
 Long format has one row per polygon-time combination with time in rows.}
 
-\item{run_control_checks}{A logical value indicating whether to generate control check
-reports for data validation (default is TRUE).}
-
 \item{max_cells}{A numeric value representing the maximum number of raster cells that
 can be processed at once (default is 3e7).}
 
@@ -95,14 +107,17 @@ are validated to ensure layer counts match current processing parameters (defaul
 \item{compression}{A character string specifying the compression algorithm for parquet
 files (default is 'zstd').}
 
-\item{control_checks_rmd}{A character string specifying the name of the RMD template
-file to look for in the utils folder (default is "02_control_checks_source_template.Rmd")}
+\item{validation}{A logical value indicating whether to generate control check
+reports for data validation (default is TRUE).}
 
-\item{selected_trans_var}{The name of the transformation variable to be used in the report.
+\item{validation_var}{The name of the transformation variable to be used in the report.
 (default is 'degree_1' but if not found, it will use the first detected transformation variable)}
 
-\item{trans_var_description}{A character string describing the transformation variable
+\item{validation_var_name}{A character string describing the transformation variable
 for plot labels (default is "Temperature (C°)")}
+
+\item{validation_rmd}{A character string specifying the name of the RMD template
+file to look for in the utils folder (default is "02_control_checks_source_template.Rmd")}
 }
 \value{
 A list containing the processed data frames:

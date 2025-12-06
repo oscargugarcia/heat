@@ -11,7 +11,8 @@ trans_spatial_agg_points(
   points_buffered,
   agg_weights,
   spatial_agg_args,
-  poly_id_col
+  poly_id_col,
+  verbose = 1
 )
 }
 \arguments{
@@ -28,6 +29,8 @@ trans_spatial_agg_points(
 \item{spatial_agg_args}{A list of spatial aggregation arguments (included for compatibility).}
 
 \item{poly_id_col}{The name of the column in the points_buffered object that identifies each point.}
+
+\item{verbose}{Integer verbosity level (0 = silent, 1 = concise, 2 = detailed).}
 }
 \value{
 A data table containing the point identifiers, transformation variable indicators, and extracted/transformed values for each time step.
@@ -38,6 +41,6 @@ This helper function processes point geometries by extracting raster values dire
 \examples{
 \dontrun{
   result <- trans_spatial_agg_points(raster_subset, trans_fun, checked_trans_args,
-                                     points_buffered, agg_weights, spatial_agg_args, poly_id_col)
+                                     points_buffered, agg_weights, spatial_agg_args, poly_id_col, verbose = 1)
 }
 }
