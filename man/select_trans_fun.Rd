@@ -4,7 +4,7 @@
 \alias{select_trans_fun}
 \title{Select Transformation Function}
 \usage{
-select_trans_fun(trans_type)
+select_trans_fun(trans_type, verbose = 1)
 }
 \arguments{
 \item{:}{\itemize{

@@ -8,7 +8,8 @@ check_periods(
   env_rast_list,
   sec_weight_layer_names = NULL,
   sec_weights = TRUE,
-  sec_weight_name
+  sec_weight_name,
+  verbose = 1
 )
 }
 \arguments{

@@ -2,7 +2,7 @@
 % Please edit documentation in R/r2e2.R
 \name{r2e2}
 \alias{r2e2}
-\title{Run the Climate Data Pipeline}
+\title{Raster to Environment Exposures (r2e2) Pipeline}
 \usage{
 r2e2(
   env_rast,
@@ -25,7 +25,8 @@ r2e2(
   compression = "zstd",
   control_checks_rmd = "02_control_checks_source_template.Rmd",
   selected_trans_var = "degree_1",
-  trans_var_description = "Temperature (C°)"
+  trans_var_description = "Temperature (C°)",
+  verbose = 1
 )
 }
 \arguments{

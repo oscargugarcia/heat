@@ -1,8 +1,80 @@
-#' @importFrom terra rast res ext
+#' @importFrom terra rast res ext xmin xmax rotate
 #' @importFrom sf st_read st_write st_crs `st_crs<-` st_transform st_geometry `st_geometry<-` st_drop_geometry st_coordinates st_geometry_type st_buffer st_is_longlat st_is_empty st_is_valid st_make_valid st_wrap_dateline st_as_sfc st_as_sf st_sfc st_sf st_polygon st_point st_centroid
 #' @importFrom arrow read_parquet
 #' @importFrom dplyr select mutate relocate
 NULL
+
+
+#' Check and Validate Environmental Raster for Pipeline Compatibility
+#'
+#' @description
+#' This function performs comprehensive validation of environmental rasters to ensure they are
+#' suitable for use in the r2e2 pipeline. It checks:
+#' - Layer names are in valid date format (via check_raster_layers)
+#' - Longitude coordinates are in -180 to 180 degree format (not 0-360)
+#' 
+#' If issues are found, the function provides clear guidance on how to fix them.
+#'
+#' @param raster A SpatRaster object to validate
+#' @param raster_name A character string describing the raster (for error/info messages)
+#' @param lon_tolerance Numeric tolerance for detecting 0-360 degree format (default: 181).
+#'   Rasters with xmax > lon_tolerance are considered to be in 0-360 format.
+#'
+#' @return The validated raster with properly formatted layer names and coordinate system
+#'
+#' @export
+#' @examples
+#' \dontrun{
+#'   # Check an existing SpatRaster object
+#'   checked_raster <- check_raster(my_raster, raster_name = "ERA5 Temperature")
+#'   
+#'   # If raster is in 0-360 format, you'll get an error with instructions:
+#'   # Error: Raster uses 0-360 degree longitude format (xmin=0.5, xmax=359.5)
+#'   # The pipeline requires -180 to 180 degree format.
+#'   # 
+#'   # To fix this, rotate the raster before using it:
+#'   #   library(terra)
+#'   #   env_rast <- rast("your_file.nc")
+#'   #   env_rast <- rotate(env_rast)
+#'   #   result <- r2e2(env_rast = env_rast, ...)
+#' }
+check_raster <- function(raster, raster_name = "raster", lon_tolerance = 181, verbose = 1) {
+  
+  # Check layer names using existing function
+  raster <- check_raster_layers(raster, raster_name, verbose = verbose)
+  
+  # Check longitude format (must be -180 to 180, not 0 to 360)
+  raster_xmin <- terra::xmin(raster)
+  raster_xmax <- terra::xmax(raster)
+  
+  if (raster_xmax > lon_tolerance) {
+    stop(
+      raster_name, " uses 0-360 degree longitude format (xmin=", round(raster_xmin, 2), 
+      ", xmax=", round(raster_xmax, 2), ")\n",
+      "r2e2 requires -180 to 180 degree format.\n\n",
+      "To fix this, rotate the raster before using it:\n",
+      "  library(terra)\n",
+      "  env_rast <- rotate(env_rast)\n",
+      "  result <- r2e2(env_rast = env_rast, ...)\n\n",
+      "Note: Make sure ALL rasters (environmental, secondary weights, tmin/tmax) use the same format."
+    )
+  }
+  
+  # Check if longitude range looks suspicious (might indicate issues)
+  if (raster_xmin < -180.5 || raster_xmax > 180.5) {
+    warning(
+      raster_name, " has unusual longitude range (xmin=", round(raster_xmin, 2), 
+      ", xmax=", round(raster_xmax, 2), ")\n",
+      "Expected range: -180 to 180 degrees. Please verify the coordinate system."
+    )
+  }
+  
+  if (verbose >= 2) {
+    message("✓ ", raster_name, " longitude format validated: -180 to 180 degrees")
+  }
+  
+  return(raster)
+}
 
 
 #' Check and Validate Raster Layer Names
@@ -16,8 +88,12 @@ NULL
 #'
 #' @return The validated raster with properly formatted layer names
 #'
-#' @keywords internal
-check_raster_layers <- function(raster, raster_name = "raster") {
+#' @export
+#' @examples
+#' \dontrun{
+#'   checked_raster <- check_raster_layers(my_raster, "temperature_data")
+#' }
+check_raster_layers <- function(raster, raster_name = "raster", verbose = 1) {
   
   if (!inherits(raster, "SpatRaster")) {
     stop(raster_name, " must be a SpatRaster object")
@@ -42,8 +118,10 @@ check_raster_layers <- function(raster, raster_name = "raster") {
       # Try using the time dimension of the raster
       time_dim <- time(raster)
       if (!is.null(time_dim) && length(time_dim) > 0) {
-        message("The layer names of ", raster_name, " do not appear to be in a standard time format (e.g., 'YYYY-MM-DD'). ",
-                "Attempting to use time dimension of the raster")
+        if (verbose >= 2) {
+          message("The layer names of ", raster_name, " do not appear to be in a standard time format (e.g., 'YYYY-MM-DD'). ",
+                  "Attempting to use time dimension of the raster")
+        }
         names(raster) <- as.character(time_dim)
         return(raster)
       } else {
@@ -54,7 +132,9 @@ check_raster_layers <- function(raster, raster_name = "raster") {
     }
   })
   
-  message("✓ ", raster_name, " validated successfully: ", nlyr(raster), " layers")
+  if (verbose >= 2) {
+    message("✓ ", raster_name, " validated successfully: ", nlyr(raster), " layers")
+  }
   return(raster)
 }
 
@@ -180,6 +260,7 @@ filter_read_rast <- function(path, year_range = NULL) {
 #' @return An sf object with geometry. If validated, will be in WGS84 (EPSG:4326) with cleaned geometries.
 #'   Point and polygon geometries are both supported and processed accordingly.
 #'
+#' @export
 #' @examples
 #' \dontrun{
 #'   # Read and validate (default)
@@ -255,8 +336,17 @@ read_spatial_file <- function(file_path, validate = TRUE) {
 #' @param source Optional character string describing the source (e.g., file path) for messaging.
 #'
 #' @return A cleaned and validated sf object with geometry in WGS84 (EPSG:4326).
-#' @keywords internal
-check_spatial_file <- function(polygons, source = NULL) {
+#'
+#' @export
+#' @examples
+#' \dontrun{
+#'   # Validate and clean an sf object
+#'   cleaned_polygons <- check_spatial_file(my_polygons)
+#'   
+#'   # With source information for better error messages
+#'   cleaned_polygons <- check_spatial_file(my_polygons, source = "my_data.gpkg")
+#' }
+check_spatial_file <- function(polygons, source = NULL, verbose = 1) {
   # Provide a short source label for messages
   src <- if (!is.null(source)) paste0(source, ": ") else ""
 
@@ -272,13 +362,17 @@ check_spatial_file <- function(polygons, source = NULL) {
 
   # Transform to WGS84 if necessary
   if (st_crs(polygons) != 4326) {
-    message(src, "Transforming CRS to WGS84 (EPSG:4326).")
+    if (verbose >= 2) {
+      message(src, "Transforming CRS to WGS84 (EPSG:4326).")
+    }
     polygons <- suppressMessages(st_transform(polygons, crs = 4326, quiet = TRUE))
   }
 
   # Rename geometry column 'geom' to 'geometry' if needed.
   if ("geom" %in% names(polygons)) {
-    message(src, "Renaming geometry column 'geom' to 'geometry'.")
+    if (verbose >= 2) {
+      message(src, "Renaming geometry column 'geom' to 'geometry'.")
+    }
     names(polygons)[names(polygons) == "geom"] <- "geometry"
     st_geometry(polygons) <- "geometry"
   }
@@ -298,12 +392,16 @@ check_spatial_file <- function(polygons, source = NULL) {
 
   if (has_points && has_polygons) {
     warning(src, "Mixed geometry types detected (points and polygons). This may affect downstream analysis.")
-    message(src, "Geometry types: ", paste(unique_geom_types, collapse = ", "))
+    if (verbose >= 2) {
+      message(src, "Geometry types: ", paste(unique_geom_types, collapse = ", "))
+    }
   }
 
   if (has_points) {
     n_points <- sum(grepl("POINT", geom_types))
-    message(src, n_points, " point geometries detected (optimized point extraction will be used).")
+    if (verbose >= 2) {
+      message(src, n_points, " point geometries detected (optimized point extraction will be used).")
+    }
   }
 
   # Handle polygon geometries (apply st_make_valid)
@@ -317,7 +415,9 @@ check_spatial_file <- function(polygons, source = NULL) {
       warning(src, n_invalid_polygons, "/", n_polygons, " polygon rows have invalid geometries and will be fixed.")
     }
 
-    message(src, "Applying st_make_valid() to ", n_polygons, " polygon geometries.")
+    if (verbose >= 2) {
+      message(src, "Applying st_make_valid() to ", n_polygons, " polygon geometries.")
+    }
     temp_polygons <- polygons
     temp_polygons[polygon_indices, ] <- st_make_valid(temp_polygons[polygon_indices, ])
 
@@ -343,47 +443,54 @@ check_spatial_file <- function(polygons, source = NULL) {
     warning(src, length(final_invalid_idx), "/", nrow(polygons), " rows still have invalid geometries: ", paste(final_invalid_idx, collapse = ", "))
   }
 
-  message(src, "Final result: ", nrow(polygons), " valid geometries loaded.")
+  if (verbose >= 2) {
+    message(src, "Final result: ", nrow(polygons), " valid geometries loaded.")
+  }
 
   return(polygons)
 }
 
-#' Buffer Polygons Based on Raster Resolution
+#' Buffer Spatial Extent Based on Raster Resolution
 #'
 #' @description
-#'   This function computes a buffered extent around the input polygons using the raster's resolution.
-#'   The extent is expanded by a factor specified by the user (buffer_factor). The buffered extent is
-#'   returned as a terra::ext object.
+#'   This function computes a buffered extent around the input spatial data (points or polygons) 
+#'   using the raster's resolution. The extent is expanded by a factor specified by the user 
+#'   (buffer_factor). This is useful for ensuring that point locations fall within raster cells
+#'   when using terra::window(), or for adding a buffer around polygon boundaries.
 #'
-#' @param:
-#'   - raster: (SpatRaster) A raster object from which the resolution is extracted.
-#'   - polygons: (sf or SpatVector) A spatial object containing the polygons.
-#'   - buffer_factor: (numeric) A factor by which to multiply the raster resolution when buffering
-#'         the polygons' extent.
+#' @param raster A SpatRaster object from which the resolution is extracted.
+#' @param spatial_data An sf or SpatVector object containing points or polygons.
+#' @param buffer_factor Numeric factor by which to multiply the raster resolution when buffering
+#'   the spatial extent. Default is 1. Use 0 for no buffer.
 #'
-#' @return:
-#'   - A buffered extent (terra::ext object) computed as:
-#'         xmin = polygons_extent$xmin - buffer_factor * x_res,
-#'         xmax = polygons_extent$xmax + buffer_factor * x_res,
-#'         ymin = polygons_extent$ymin - buffer_factor * y_res,
-#'         ymax = polygons_extent$ymax + buffer_factor * y_res.
+#' @return A buffered extent (terra::ext object) computed as:
+#'   xmin = spatial_extent$xmin - buffer_factor * x_res,
+#'   xmax = spatial_extent$xmax + buffer_factor * x_res,
+#'   ymin = spatial_extent$ymin - buffer_factor * y_res,
+#'   ymax = spatial_extent$ymax + buffer_factor * y_res.
 #'
 #' @examples
-#'   buffered_extent <- buffer_polygons(environmental_raster, polygons, buffer_factor = 1)
-buffer_polygons <- function(raster, polygons, buffer_factor) { 
+#' \dontrun{
+#'   # Buffer extent by one cell resolution (useful for points)
+#'   buffered_extent <- buffer_extent(environmental_raster, points, buffer_factor = 1)
+#'   
+#'   # No buffer (useful for polygons)
+#'   unbuffered_extent <- buffer_extent(environmental_raster, polygons, buffer_factor = 0)
+#' }
+buffer_extent <- function(raster, spatial_data, buffer_factor = 1) { 
   # Extract raster resolution
   x_res <- res(raster)[1]
   y_res <- res(raster)[2]
   
-  # Get polygon bounding box as a terra::ext object.
-  polygons_extent <- ext(polygons)
+  # Get spatial data bounding box as a terra::ext object
+  spatial_extent <- ext(spatial_data)
   
-  # Create a buffered extent using the buffer_factor.
+  # Create a buffered extent using the buffer_factor
   buffered_extent <- ext(c(
-    xmin = polygons_extent$xmin - buffer_factor * x_res,
-    xmax = polygons_extent$xmax + buffer_factor * x_res,
-    ymin = polygons_extent$ymin - buffer_factor * y_res,
-    ymax = polygons_extent$ymax + buffer_factor * y_res
+    xmin = spatial_extent$xmin - buffer_factor * x_res,
+    xmax = spatial_extent$xmax + buffer_factor * x_res,
+    ymin = spatial_extent$ymin - buffer_factor * y_res,
+    ymax = spatial_extent$ymax + buffer_factor * y_res
   ))
   
   return(buffered_extent)
@@ -410,7 +517,7 @@ buffer_polygons <- function(raster, polygons, buffer_factor) {
 #'   # Assuming 'my_raster' is a multi-layer raster and you wish to filter
 #'   # it for dates between January 1, 2018, and December 31, 2018:
 #'   filtered_raster <- filter_env_rast(my_raster, start_date = "2018-01-01", end_date = "2018-12-31")
-filter_env_rast <- function(env_rast, start_date, end_date) {
+filter_env_rast <- function(env_rast, start_date, end_date, verbose = 1) {
   # Check if raster layer names exist
   layer_names <- names(env_rast)
   if (is.null(layer_names)) {
@@ -449,17 +556,21 @@ filter_env_rast <- function(env_rast, start_date, end_date) {
   }
   
   if (start_date > raster_start || end_date < raster_end) {
-    message("Selected period date range is shorter than raster date range:\n",
-            "   Raster covers: ", raster_start, " to ", raster_end, "\n",
-            "   Periods cover: ", start_date, " to ", end_date, "\n",
-            "Filtering to period date range...")
+    if (verbose >= 2) {
+      message("Selected period date range is shorter than raster date range:\n",
+              "   Raster covers: ", raster_start, " to ", raster_end, "\n",
+              "   Periods cover: ", start_date, " to ", end_date, "\n",
+              "Filtering to period date range...")
+    }
   }
   
   
   # Filter the raster based on the specified date range
   date_mask <- raster_dates >= start_date & raster_dates <= end_date
   filtered_raster <- env_rast[[date_mask]]
-  message("Filtered Raster date range: ", start_date, " to ", end_date, "\n")
+  if (verbose >= 2) {
+    message("Filtered Raster date range: ", start_date, " to ", end_date, "\n")
+  }
   
   
   return(filtered_raster)

@@ -4,7 +4,7 @@
 \alias{check_raster_layers}
 \title{Check and Validate Raster Layer Names}
 \usage{
-check_raster_layers(raster, raster_name = "raster")
+check_raster_layers(raster, raster_name = "raster", verbose = 1)
 }
 \arguments{
 \item{raster}{A SpatRaster object to validate}
@@ -18,4 +18,8 @@ The validated raster with properly formatted layer names
 This helper function checks that a raster has valid layer names in date format.
 If layer names are not valid dates, it attempts to use the time dimension of the raster.
 }
-\keyword{internal}
+\examples{
+\dontrun{
+  checked_raster <- check_raster_layers(my_raster, "temperature_data")
+}
+}

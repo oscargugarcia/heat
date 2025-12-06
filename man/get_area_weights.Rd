@@ -37,4 +37,5 @@ and coordinates, useful for spatial aggregation tasks.
   
   arrow::write_parquet(area_weights, file.path(paths$path_out_folder, "area_weights.parquet"))
 }
+
 }

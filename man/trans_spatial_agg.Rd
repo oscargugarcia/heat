@@ -8,7 +8,7 @@ trans_spatial_agg(
   env_rast_list,
   sec_weight_rast_list,
   polygons,
-  buffered_extent,
+  crop_extent,
   trans_type,
   trans_fun,
   checked_trans_args,
@@ -19,7 +19,8 @@ trans_spatial_agg(
   sec_weights = TRUE,
   max_cells = 3e+07,
   save_batch_output = TRUE,
-  overwrite_batch_output = FALSE
+  overwrite_batch_output = FALSE,
+  verbose = 1
 )
 }
 \arguments{
@@ -30,8 +31,6 @@ Each element should be a single-layer or multi-layer SpatRaster corresponding to
 Use NULL if sec_weights = FALSE.}
 
 \item{polygons}{An sf object containing the spatial polygons over which aggregation is performed.}
-
-\item{buffered_extent}{A buffered extent used to crop the secondary weight rasters.}
 
 \item{trans_type}{A character string indicating the type of transformation.}
 
@@ -55,6 +54,8 @@ Use NULL if sec_weights = FALSE.}
 
 \item{overwrite_batch_output}{Logical indicating whether to overwrite existing batch files. When FALSE, existing files
 are validated to ensure layer counts match current processing parameters (default: FALSE).}
+
+\item{buffered_extent}{A buffered extent used to crop the secondary weight rasters.}
 }
 \value{
 A data.table containing the final spatial aggregation results.

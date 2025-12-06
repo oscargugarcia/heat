@@ -6,7 +6,7 @@
 NULL
 
 
-#' Run the Climate Data Pipeline
+#' Raster to Environment Exposures (r2e2) Pipeline
 #'
 #' This function runs an aggregation pipeline that processes environmental raster data
 #' and polygon datasets to perform spatial and temporal aggregations. It loads the necessary
@@ -108,6 +108,7 @@ NULL
 #'         - temp_agg_long: Temporally aggregated data in long format (time steps as rows, NULL if out_format = "wide")
 #'         - area_weights: Area weights data frame (always included)
 #'         Results are also saved directly to the specified output directory in parquet format when save_path is provided.
+#' @export
 r2e2 <- function(env_rast,
                  polygons,
                  poly_id_col = NULL,
@@ -128,7 +129,8 @@ r2e2 <- function(env_rast,
                  compression = 'zstd',
                  control_checks_rmd = "02_control_checks_source_template.Rmd",
                  selected_trans_var = 'degree_1',
-                 trans_var_description = "Temperature (C°)") {
+                 trans_var_description = "Temperature (C°)",
+                 verbose = 1) {
   
   # Check if output path is provided
   save_path_provided <- !is.null(save_path) && save_path != ""
@@ -151,7 +153,6 @@ r2e2 <- function(env_rast,
   }
   
   if (!save_path_provided) {
-    message("No save_path provided. Results will be returned without saving.")
     # Disable operations that require file output
     save_console_output <- FALSE
     run_control_checks <- FALSE
@@ -172,9 +173,24 @@ r2e2 <- function(env_rast,
   
   # ---- 1. Data --------------------------------------------------------------------
   
-  message("\n===========================================================================",
-          "\n 1. Load Data",
-          "\n===========================================================================\n")
+  # Print Input Validation section header with verbosity and save_path info
+  if (verbose == 1) {
+    message("1. Input Validation")
+    message("  Verbose level: 1 (concise messages | 0 = silent, 1 = concise, 2 = detailed)")
+    if (!save_path_provided) {
+      message("  No save_path provided. Results will be returned without saving.")
+    }
+  } else if (verbose >= 2) {
+    message("===========================================================================",
+            "\n 1. Input Validation",
+            "\n===========================================================================\n")
+    
+    message("Verbose level: ", verbose, " (detailed messages | 0 = silent, 1 = concise, 2 = detailed))")
+    if (!save_path_provided) {
+      message("No save_path provided. Results will be returned without saving.")
+    }
+    
+  }
   
   ## ---- 1.1 Create output folder and console output --------------------------------------------------------------------
   
@@ -205,7 +221,9 @@ r2e2 <- function(env_rast,
     # Write to file
     writeLines(output, file.path(save_path, "global_parameters.txt"))
     
-    message("✓ Global parameters saved")
+    if (verbose >= 1) {
+      message("✓ Global parameters saved")
+    }
   }
 
   
@@ -214,7 +232,9 @@ r2e2 <- function(env_rast,
   # Handle polygons - either load from path or validate existing object
   if (is.character(polygons)) {
     polygons <- read_spatial_file(polygons)
-    message("✓ Polygons loaded: ", nrow(polygons), " features")
+    if (verbose >= 1) {
+      message("✓ Polygons loaded: ", nrow(polygons), " features")
+    }
   } else if (!inherits(polygons, c("sf", "SpatVector"))) {
     stop("polygons must be either a character path to a spatial file or an sf/SpatVector object")
   } else {
@@ -223,13 +243,17 @@ r2e2 <- function(env_rast,
       polygons <- sf::st_as_sf(polygons)
     }
     # Validate and clean the provided sf object
-    polygons <- check_spatial_file(polygons)
-    message("✓ Geometry provided and validated: ", nrow(polygons), " rows")
+    polygons <- check_spatial_file(polygons, verbose = verbose)
+    if (verbose >= 2) {
+      message("✓ Geometry provided and validated: ", nrow(polygons), " rows")
+    }
   }
   
   # Handle NULL poly_id_col by creating row_index and updating spatial_agg_args
   if (is.null(poly_id_col)) {
-    message("No poly_id_col provided. Using row index as polygon ID column. All original columns will be kept in the output.")
+    if (verbose >= 2) {
+      message("No poly_id_col provided. Using row index as polygon ID column. All original columns will be kept in the output.")
+    }
     
     # Get column names of the polygons
     polygon_colnames <- polygons %>% 
@@ -266,14 +290,23 @@ r2e2 <- function(env_rast,
     stop("env_rast must be either a character path or a SpatRaster object")
   }
   
-  # Validate raster layer names
-  env_rast <- check_raster_layers(env_rast, "Environmental raster")
+  # Validate raster (layer names and longitude format)
+  env_rast <- check_raster(env_rast, "Environmental raster", verbose = verbose)
   
-  # Create a buffered extent around the input polygons using the raster's resolution
-  buffered_extent <- buffer_polygons(env_rast, polygons, buffer_factor = 1)
+  # Crop raster to spatial data bounding box for efficiency
+  # For point geometries, buffer by one cell to ensure cells containing points are included
+  # For polygon geometries, use extent directly (terra::window() includes intersecting cells)
+  geom_types <- sf::st_geometry_type(polygons)
+  is_points <- all(grepl("POINT", geom_types))
   
-  # Crop the extent of the raster to the polygon buffer (terra::window is faster than terra::crop. To undo the crop, load the raster back in with terra::rast())
-  terra::window(env_rast) <- buffered_extent
+  if (is_points) {
+    crop_extent <- buffer_extent(env_rast, polygons, buffer_factor = 1)
+  } else {
+    crop_extent <- terra::ext(polygons)
+  }
+  
+  terra::window(env_rast) <- crop_extent
+  
   # Clean up large objects no longer needed
   gc(verbose = FALSE)
 
@@ -349,67 +382,70 @@ r2e2 <- function(env_rast,
   
 
   
-  # ---- 2. Prepare Aggregation ----------------------------------------------------------
-  
-  message("\n===========================================================================",
-          "\n 2. Prepare Aggregation",
-          "\n===========================================================================\n")
-  
   ## ---- 2.1 Assign secondary weighting periods ----------------------------------------------------------
   
-  message("\n---------------------------------------------------",
-          "\n   2.1 Assign Periods",
-          "\n---------------------------------------------------\n")
+  if (verbose == 2) {
+    message("\n---------------------------------------------------",
+            "\n   1.1 Assign Periods",
+            "\n---------------------------------------------------\n")
+  }
   
   # Generate [start_date, end_date] pairs for each period
   period_defs <- create_periods(period_boundaries)
   
   # Read and process raster stacks for each period
-  env_rast_list <- assign_weighting_periods(env_rast, period_defs)
+  env_rast_list <- assign_weighting_periods(env_rast, period_defs, verbose = verbose)
  
   sec_weight_name <- ifelse(is.null(metadata), "name not provided", metadata$sec_weight_product)
-  weighting_periods <- check_periods(env_rast_list, sec_weight_layer_names, sec_weights, sec_weight_name)
+  weighting_periods <- check_periods(env_rast_list, sec_weight_layer_names, sec_weights, sec_weight_name, verbose = verbose)
 
   ## ---- 2.2 Transformation functions and arguments ---------------------------------------------------------
   
-  message("\n---------------------------------------------------",
-          "\n   2.2 Select Transformation Functions",
-          "\n---------------------------------------------------\n")
+  if (verbose == 2) {
+    message("\n---------------------------------------------------",
+            "\n   1.2 Select Transformation Functions",
+            "\n---------------------------------------------------\n")
+  }
   
   # Select the transformation function (e.g., stats::poly for "polynomial")
-  trans_fun <- select_trans_fun(trans_type)
+  trans_fun <- select_trans_fun(trans_type, verbose = verbose)
   
   # Check the function and its arguments
-  checked_trans_args <- check_trans(trans_fun, trans_args)
+  checked_trans_args <- check_trans(trans_fun, trans_args, verbose = verbose)
   
   ## ---- 2.3 Spatial aggregation arguments ---------------------------------------------------------
   
-  message("\n---------------------------------------------------",
-          "\n   2.3 Check Spatial Aggregation Arguments",
-          "\n---------------------------------------------------\n")
+  if (verbose == 2) {
+    message("\n---------------------------------------------------",
+            "\n   1.3 Check Spatial Aggregation Arguments",
+            "\n---------------------------------------------------\n")
+  }
   
   # Get appended columns argument if provided
   appended_cols <- spatial_agg_args$append_cols
   
   # Check spatial aggregation arguments
-  checked_spatial_agg_args <- check_spatial_agg_args(spatial_agg_args)
+  checked_spatial_agg_args <- check_spatial_agg_args(spatial_agg_args, verbose = verbose)
   
   # ---- 3. Transformation and Spatial Aggregation ---------------------------------------------------------
-  
-  message("\n===========================================================================",
-          "\n 3. Transformation and Spatial Aggregation",
-          "\n===========================================================================")
-  
-  message("\n---------------------------------------------------",
-          "\n   3.1 Run Transformation and Spatial Aggregation",
-          "\n---------------------------------------------------\n")
+
+  if (verbose == 1) {
+    message("2. Transformation and Spatial Aggregation")
+  } else if (verbose == 2) {
+    message("\n===========================================================================",
+            "\n 2. Transformation and Spatial Aggregation",
+            "\n===========================================================================\n")
+    message("\n---------------------------------------------------",
+            "\n   2.1 Run Transformation and Spatial Aggregation",
+            "\n---------------------------------------------------\n")
+  }
   
   ## ---- 3.1 Process all periods sequentially ----------------------------------------------------------
   
   spatial_agg <- trans_spatial_agg(env_rast_list = env_rast_list, 
                                    sec_weight_rast_list = sec_weight_rast_list, 
                                    polygons = polygons,
-                                   buffered_extent = buffered_extent, 
+                                   crop_extent = crop_extent, 
                                    trans_fun = trans_fun, 
                                    trans_type = trans_type,
                                    checked_trans_args = checked_trans_args,
@@ -420,7 +456,8 @@ r2e2 <- function(env_rast,
                                    sec_weights = sec_weights,
                                    max_cells = max_cells, 
                                    save_batch_output =  save_batch_output,
-                                   overwrite_batch_output = overwrite_batch_output)
+                                   overwrite_batch_output = overwrite_batch_output,
+                                   verbose = verbose)
   
   # Clean up large objects no longer needed
   rm(env_rast_list)  # Remove the list of raster periods
@@ -428,16 +465,18 @@ r2e2 <- function(env_rast,
   
   ## ---- 3.2 Process spatial aggregation output ----------------------------------------------------------
   
-  message("\n---------------------------------------------------",
-          "\n   3.2 Check and Process Spatial Aggregation Output",
-          "\n---------------------------------------------------\n")
+  if (verbose == 2) {
+    message("\n---------------------------------------------------",
+            "\n   2.2 Check and Process Spatial Aggregation Output",
+            "\n---------------------------------------------------\n")
+  }
   
   # Check for any polygons with missing values
   date_cols <- get_date_cols(spatial_agg)
-  poly_ids_missing_vals <- get_missing_vals(spatial_agg, date_cols)
+  poly_ids_missing_vals <- get_missing_vals(spatial_agg, date_cols, verbose = verbose)
   
   # Rename transformation variable
-  spatial_agg <- rename_trans_var(spatial_agg, trans_type, checked_trans_args)
+  spatial_agg <- rename_trans_var(spatial_agg, trans_type, checked_trans_args, verbose = verbose)
   
   # Add metadata columns
   spatial_agg <- add_metadata_cols(spatial_agg, trans_type, metadata, trans_args)
@@ -448,64 +487,83 @@ r2e2 <- function(env_rast,
   ## ---- 3.3 Save output ----------------------------------------------------------
   
   if (save_wide && save_path_provided) {
-    message("\n---------------------------------------------------",
-            "\n   3.3 Save Aggregated Output",
-            "\n---------------------------------------------------\n")
+    if (verbose == 2) {
+      message("\n---------------------------------------------------",
+              "\n   2.3 Save Aggregated Output",
+              "\n---------------------------------------------------\n")
+    }
     
     # Save as parquet (no geometry in output)
     write_parquet(spatial_agg, file.path(save_path, "aggregation_output_daily_wide.parquet"), 
                   compression = compression)
-    message("Daily aggregation output in wide format saved to: aggregation_output_daily_wide.parquet")
+    if (verbose >= 1) {
+      message("Daily aggregation output in wide format saved to: aggregation_output_daily_wide.parquet")
+    }
   }
   
   ## ---- 3.4 Get area weights ----------------------------------------------------------
   
-  message("\n---------------------------------------------------",
-          "\n   3.4 Calculate Area Weights",
-          "\n---------------------------------------------------\n")
+  if (verbose == 2) {
+    message("\n---------------------------------------------------",
+            "\n   2.4 Calculate Area Weights",
+            "\n---------------------------------------------------\n")
+  }
   
   area_weights <- get_area_weights(env_rast[[1]], polygons, poly_id_col)
   if (exists("env_rast")) rm(env_rast)  # Remove original raster
 
   if (save_path_provided) {
      write_parquet(area_weights, file.path(save_path, "area_weights.parquet"))
-     message("Area weights saved to: area_weights.parquet")
+     if (verbose >= 1) {
+       message("Area weights saved to: area_weights.parquet")
+     }
   } else {
-    message("Area weights calculated but not saved (no output path provided).")
+    if (verbose >= 2) {
+      message("Area weights calculated but not saved (no output path provided).")
+    }
   }
 
 
   # ---- 4. Temporal Aggregation ----------------------------------------------------------
+
+  if (verbose == 1) {
+    message("3. Temporal Aggregation")
+  } else if (verbose == 2) {
+    message("\n===========================================================================",
+            "\n 3. Temporal Aggregation",
+            "\n===========================================================================\n")
+  }
   
-  message("\n===========================================================================",
-          "\n 4. Temporal Aggregation",
-          "\n===========================================================================\n")
-  
-  temp_agg_wide <- temp_agg(spatial_agg, temp_agg_args, keep_metadata = TRUE)
+  temp_agg_wide <- temp_agg(spatial_agg, temp_agg_args, keep_metadata = TRUE, verbose = verbose)
   
   if (save_wide && save_path_provided) {
     # Save as parquet (no geometry in output)
     filename_temp_agg_wide <- paste0("aggregation_output_", temp_agg_args$out_temp_res, "_wide.parquet")
     write_parquet(temp_agg_wide, file.path(save_path, filename_temp_agg_wide), 
                   compression = compression)
-    message("Temporally aggregated output in wide format saved to: aggregation_output_", 
-            temp_agg_args$out_temp_res, "_wide.parquet")
+    if (verbose >= 1) {
+      message("Temporally aggregated output in wide format saved to: aggregation_output_", 
+              temp_agg_args$out_temp_res, "_wide.parquet")
+    }
   }
   
   # ---- 5. Reshape to Long Format ----------------------------------------------------------
   
   # Only perform long format conversion if requested
   if (save_long) {
-    message("\n===========================================================================",
-            "\n 5. Reshape Data to Long Format",
-            "\n===========================================================================")
-    
-    message("\n---------------------------------------------------",
-            "\n   5.1 Reshape Temporally Aggregated Output to Long Format",
-            "\n---------------------------------------------------\n")
+    if (verbose == 1) {
+      message("4. Reshaping to Long Format")
+    } else if (verbose == 2) {
+      message("\n===========================================================================",
+              "\n 4. Reshape Data to Long Format",
+              "\n===========================================================================\n")
+      message("\n---------------------------------------------------",
+              "\n   4.1 Reshape Temporally Aggregated Output to Long Format",
+              "\n---------------------------------------------------\n")
+    }
     
     # Save long temporally aggregated output
-    temp_agg_long <- reshape_to_long(temp_agg_wide, add_time_columns = TRUE)
+    temp_agg_long <- reshape_to_long(temp_agg_wide, add_time_columns = TRUE, verbose = verbose)
     temp_agg_long <- add_appended_cols(temp_agg_long, polygons, poly_id_col, appended_cols)
     
     if (save_path_provided) {
@@ -513,17 +571,21 @@ r2e2 <- function(env_rast,
       filename_temp_agg_long <- paste0("aggregation_output_", temp_agg_args$out_temp_res, "_long.parquet")
       write_parquet(temp_agg_long, file.path(save_path, filename_temp_agg_long), 
                     compression = compression)
-      message("Temporally aggregated output in long format saved to: aggregation_output_", 
-              temp_agg_args$out_temp_res, "_long.parquet")
+      if (verbose >= 1) {
+        message("Temporally aggregated output in long format saved to: aggregation_output_", 
+                temp_agg_args$out_temp_res, "_long.parquet")
+      }
     }
     
     # Save long daily output
     if (temp_agg_args$out_temp_res != "daily") {
-      message("\n---------------------------------------------------",
-              "\n   5.2 Reshape Daily Output to Long Format",
-              "\n---------------------------------------------------\n")
+      if (verbose == 2) {
+        message("\n---------------------------------------------------",
+                "\n   4.2 Reshape Daily Output to Long Format",
+                "\n---------------------------------------------------\n")
+      }
       
-      spatial_agg_long <- reshape_to_long(spatial_agg, add_time_columns = TRUE)
+      spatial_agg_long <- reshape_to_long(spatial_agg, add_time_columns = TRUE, verbose = verbose)
       spatial_agg_long <- add_appended_cols(spatial_agg_long, polygons, poly_id_col, appended_cols)
       
       if (save_path_provided) {
@@ -531,7 +593,9 @@ r2e2 <- function(env_rast,
         filename_spatial_agg_long <- "aggregation_output_daily_long.parquet"
         write_parquet(spatial_agg_long, file.path(save_path, filename_spatial_agg_long), 
                       compression = compression)
-        message("Daily aggregation output in long format saved to: aggregation_output_daily_long.parquet")
+        if (verbose >= 1) {
+          message("Daily aggregation output in long format saved to: aggregation_output_daily_long.parquet")
+        }
       }
     }
     
@@ -542,7 +606,9 @@ r2e2 <- function(env_rast,
       gc(verbose = FALSE)
     }
   } else {
-    message("\nSkipping long format conversion (out_format = 'wide').\n")
+    if (verbose >= 1) {
+      message("\nSkipping long format conversion (out_format = 'wide').\n")
+    }
     temp_agg_long <- NULL
     spatial_agg_long <- NULL
   }
@@ -569,20 +635,26 @@ r2e2 <- function(env_rast,
   
   # ---- 6. Control Checks ----------------------------------------------------------
   
-  message("\n===========================================================================",
-          "\n 6. Control Checks",
-          "\n===========================================================================\n")
+  if (verbose >= 2) {
+    message("\n===========================================================================",
+            "\n 5. Control Checks",
+            "\n===========================================================================\n")
+  }
   
   # Check if control checks should be run
   if (!run_control_checks) {
-    if (!save_path_provided) {
-      message("Control checks skipped (no output path provided).\n")
-    } else {
-      message("Control checks skipped. If control checks are desired, set run_control_checks = TRUE.\n")
+    if (verbose >= 2) {
+      if (!save_path_provided) {
+        message("Control checks skipped (no output path provided).\n")
+      } else {
+        message("Control checks skipped. If control checks are desired, set run_control_checks = TRUE.\n")
+      }
     }
     return(results)
   } else {
-    message("\nRunning control checks...\n")
+    if (verbose >= 1) {
+      message("\nRunning control checks...\n")
+    }
   
   # Run control checks on the long format data
   control_checks(

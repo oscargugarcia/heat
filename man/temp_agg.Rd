@@ -4,7 +4,7 @@
 \alias{temp_agg}
 \title{Temporal Aggregation of Wide Spatial Extraction Results (With Optional Metadata Retention)}
 \usage{
-temp_agg(spatial_output, agg_args, keep_metadata = TRUE)
+temp_agg(spatial_output, agg_args, keep_metadata = TRUE, verbose = 1)
 }
 \arguments{
 \item{:}{\itemize{
@@ -47,4 +47,5 @@ are retained.
     temp_agg_fun = mean
   )
   aggregated_DT <- temp_agg(spatial_output, agg_args)
+
 }

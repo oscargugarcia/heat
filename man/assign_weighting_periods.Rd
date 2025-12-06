@@ -4,7 +4,7 @@
 \alias{assign_weighting_periods}
 \title{Split Raster by Weighting Periods}
 \usage{
-assign_weighting_periods(raster, period_defs)
+assign_weighting_periods(raster, period_defs, verbose = 1)
 }
 \arguments{
 \item{:}{\itemize{

@@ -90,20 +90,24 @@ get_temp_res <- function(date_cols) {
 
 
 add_time_cols <- function(dt, date_col = "date", temp_res = "daily",
-                          id_vars = c("poly_id", "trans_type")) {
+                          id_vars = c("poly_id", "trans_type"), verbose = 1) {
   # Ensure dt is a data.table.
   if (!data.table::is.data.table(dt)) {
     dt <- data.table::as.data.table(dt)
   }
   
   if (temp_res == "yearly") {
-    message("Detected temporal resolution: 'yearly'. Renaming '", date_col, "' column to 'year'.")
+    if (verbose >= 2) {
+      message("Detected temporal resolution: 'yearly'. Renaming '", date_col, "' column to 'year'.")
+    }
     data.table::setnames(dt, date_col, "year")
     # Order by the identifier columns and year.
     data.table::setorderv(dt, c(id_vars, "year"))
     
   } else if (temp_res == "monthly") {
-    message("Detected temporal resolution: 'monthly'. Creating 'year' and 'month' columns.")
+    if (verbose >= 2) {
+      message("Detected temporal resolution: 'monthly'. Creating 'year' and 'month' columns.")
+    }
     dt[, year := as.integer(substr(get(date_col), 1, 4))]
     dt[, month := as.integer(substr(get(date_col), 6, 7))]
     # Reorder columns: id_vars, then date_col, year, month, then the rest.
@@ -114,7 +118,9 @@ add_time_cols <- function(dt, date_col = "date", temp_res = "daily",
     data.table::setorderv(dt, c(id_vars, "year", "month"))
     
   } else if (temp_res == "daily") {
-    message("Detected temporal resolution: 'daily'. Creating 'year', 'month', and 'day' columns.")
+    if (verbose >= 2) {
+      message("Detected temporal resolution: 'daily'. Creating 'year', 'month', and 'day' columns.")
+    }
     # Build a lookup table to compute year, month, day once per unique date.
     unique_dates <- unique(dt[[date_col]])
     lookup_dt <- data.table::data.table(date = unique_dates)
@@ -138,7 +144,9 @@ add_time_cols <- function(dt, date_col = "date", temp_res = "daily",
     data.table::setorderv(dt, c(id_vars, "year", "month", "day"))
     
   } else if (temp_res == "hourly") {
-    message("Detected temporal resolution: 'hourly'. Creating 'year', 'month', 'day', and 'hour' columns.")
+    if (verbose >= 2) {
+      message("Detected temporal resolution: 'hourly'. Creating 'year', 'month', 'day', and 'hour' columns.")
+    }
     
     # Parse the date column to POSIXct
     dt[, parsed_date := lubridate::ymd_hm(get(date_col))]
@@ -199,10 +207,13 @@ add_time_cols <- function(dt, date_col = "date", temp_res = "daily",
 #'   # Suppose wide_dt is a data.table with columns "poly_id", "trans_type", "trans_var",
 #'   # and date columns like "2017-01-01", "2017-01-02", etc.
 #'   long_dt <- reshape_to_long(wide_dt)
+#' 
+#' @export
 reshape_to_long <- function(wide_dt, 
                             id_cols = c("poly_id", "trans_type"), 
                             trans_var = "trans_var",
-                            add_time_columns = TRUE) {
+                            add_time_columns = TRUE,
+                            verbose = 1) {
   
   reshape_start <- Sys.time()
   
@@ -231,10 +242,32 @@ reshape_to_long <- function(wide_dt,
   # Get the unique trans_var values.
   unique_trans <- unique(wide_dt[[trans_var]])
   
+  # Initialize progress bar if verbose >= 1
+  pb <- NULL
+  if (verbose >= 1 && length(unique_trans) > 1) {
+    pb <- tryCatch({
+      progress::progress_bar$new(
+        format = "  [:bar] :percent | Variable :current/:total | ETA: :eta",
+        total = length(unique_trans),
+        clear = FALSE,
+        force = TRUE,
+        show_after = 0,
+        width = 80
+      )
+    }, error = function(e) {
+      NULL
+    })
+  }
+  
   # Loop over each unique trans_var value.
-  for (i in unique_trans) {
+  for (idx in seq_along(unique_trans)) {
+    i <- unique_trans[idx]
     val_name <- as.character(i)
-    message("Processing trans_var: ", val_name)
+    
+    # Update progress bar
+    if (!is.null(pb)) {
+      pb$tick()
+    }
     
     # Subset the data.table to rows corresponding to the current trans_var.
     sub_dt <- wide_dt[ trans_var == i, ]
@@ -269,12 +302,14 @@ reshape_to_long <- function(wide_dt,
   
   # Optionally add time columns based on temporal resolution.
   if (add_time_columns) {
-    long_dt <- add_time_cols(long_dt, date_col = "date", temp_res = temp_res, id_vars = id_vars_final)
+    long_dt <- add_time_cols(long_dt, date_col = "date", temp_res = temp_res, id_vars = id_vars_final, verbose = verbose)
   }
   
   reshape_end <- Sys.time()
-  message("Reshaping to long format completed in ", 
-          round(difftime(reshape_end, reshape_start, units = "secs"), 2), " seconds.")
+  if (verbose >= 2) {
+    message("Reshaping to long format completed in ", 
+            round(difftime(reshape_end, reshape_start, units = "secs"), 2), " seconds.")
+  }
   
   return(long_dt)
 }

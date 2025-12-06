@@ -4,7 +4,7 @@
 \alias{check_spatial_agg_args}
 \title{Check Spatial Aggregation Arguments}
 \usage{
-check_spatial_agg_args(args)
+check_spatial_agg_args(args, verbose = 1)
 }
 \arguments{
 \item{args}{A list of spatial aggregation arguments.}

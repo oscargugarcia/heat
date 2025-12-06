@@ -4,7 +4,7 @@
 \alias{check_trans}
 \title{Check Transformation Function Arguments}
 \usage{
-check_trans(fun, args)
+check_trans(fun, args, verbose = 1)
 }
 \arguments{
 \item{:}{\itemize{

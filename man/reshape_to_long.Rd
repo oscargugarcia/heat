@@ -8,7 +8,8 @@ reshape_to_long(
   wide_dt,
   id_cols = c("poly_id", "trans_type"),
   trans_var = "trans_var",
-  add_time_columns = TRUE
+  add_time_columns = TRUE,
+  verbose = 1
 )
 }
 \arguments{
@@ -45,4 +46,5 @@ Optionally, time columns (year, month, day) are added based on the detected temp
   # Suppose wide_dt is a data.table with columns "poly_id", "trans_type", "trans_var",
   # and date columns like "2017-01-01", "2017-01-02", etc.
   long_dt <- reshape_to_long(wide_dt)
+
 }

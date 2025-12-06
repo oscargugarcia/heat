@@ -5,6 +5,7 @@
 #' @importFrom dplyr left_join mutate select relocate any_of
 #' @importFrom lubridate ymd ym ymd_hm year month day hour minute days_in_month
 #' @importFrom arrow write_parquet
+#' @importFrom progress progress_bar
 NULL
 
 #' Get the boundary dates for the weighting periods based on the layer names of the secondary weight raster.
@@ -147,7 +148,7 @@ create_periods <- function(boundary_dates) {
 #'   # Assuming 'cropped_raster' is a cropped SpatRaster with time metadata and
 #'   # 'period_defs' is a data.frame with start_date and end_date columns:
 #'   periods_list <- assign_weighting_periods(cropped_raster, period_defs)
-assign_weighting_periods <- function(raster, period_defs) {
+assign_weighting_periods <- function(raster, period_defs, verbose = 1) {
   
   # Check that period_defs contains the required 'start_date' and 'end_date' columns.
   if (!all(c("start_date", "end_date") %in% names(period_defs))) {
@@ -158,10 +159,12 @@ assign_weighting_periods <- function(raster, period_defs) {
   period_defs$start_date <- as.Date(period_defs$start_date)
   period_defs$end_date   <- as.Date(period_defs$end_date)
   
-  filtered_raster <- filter_env_rast(raster, period_defs$start_date[1], period_defs$end_date[nrow(period_defs)])
+  filtered_raster <- filter_env_rast(raster, period_defs$start_date[1], period_defs$end_date[nrow(period_defs)], verbose = verbose)
   raster_dates <- names(filtered_raster)
   
-  message("Assigning raster layers to their respective weighting periods...")
+  if (verbose >= 2) {
+    message("Assigning raster layers to their respective weighting periods...")
+  }
 
   # Initialize an empty list to store the raster stacks for each period.
   raster_stacks <- list()
@@ -178,8 +181,10 @@ assign_weighting_periods <- function(raster, period_defs) {
       # raster_subset <- raster[[selected_layers]]
       raster_subset <- filtered_raster[[selected_layers]]
       raster_stacks[[period_name]] <- raster_subset
-      message("   Assigned ", length(selected_layers), " layers to ", period_name, 
-              " (", start_date, " to ", end_date, ").")
+      if (verbose >= 2) {
+        message("   Assigned ", length(selected_layers), " layers to ", period_name, 
+                " (", start_date, " to ", end_date, ").")
+      }
     } else {
       message("   Warning: No layers found for ", period_name, 
               " (", start_date, " to ", end_date, ").")
@@ -187,7 +192,9 @@ assign_weighting_periods <- function(raster, period_defs) {
     }
   }
   
-  message("Done!")
+  if (verbose >= 2) {
+    message("Done!")
+  }
   return(raster_stacks)
 }
 
@@ -220,7 +227,7 @@ assign_weighting_periods <- function(raster, period_defs) {
 #'   # When secondary weighting is not used:
 #'   check_periods(env_rast_list, sec_weights = FALSE)
 #' }
-check_periods <- function(env_rast_list, sec_weight_layer_names = NULL, sec_weights = TRUE, sec_weight_name) {
+check_periods <- function(env_rast_list, sec_weight_layer_names = NULL, sec_weights = TRUE, sec_weight_name, verbose = 1) {
   # Get period names and date ranges from the environmental raster list.
   period_names <- names(env_rast_list)
   period_ranges <- sapply(env_rast_list, function(r) {
@@ -238,11 +245,15 @@ check_periods <- function(env_rast_list, sec_weight_layer_names = NULL, sec_weig
            length(sec_weight_layer_names), 
            ").")
     }
-    message("Number of environmental raster periods and secondary weight rasters match. Generating verification table...")
-    message("\nPlease verify that the periods align correctly with the secondary weight rasters")
+    if (verbose >= 2) {
+      message("Number of environmental raster periods and secondary weight rasters match. Generating verification table...")
+      message("\nPlease verify that the periods align correctly with the secondary weight rasters")
+    }
     
   } else {
-    message("\nNo secondary weighting requested (sec_weights = FALSE).")
+    if (verbose >= 2) {
+      message("\nNo secondary weighting requested (sec_weights = FALSE).")
+    }
   }
   
   # Compactly assign the Secondary_Weight_Raster column using an inline if/else.
@@ -257,12 +268,14 @@ check_periods <- function(env_rast_list, sec_weight_layer_names = NULL, sec_weig
   )
   
   # Print as properly formatted table
-  message("\nVerification Table:\n")
-  message(paste(rep("-", 90), collapse = ""))
-  cat("\n")
-  print(verification_table, row.names = FALSE)
-  cat("\n")
-  message(paste(rep("-", 90), collapse = ""))
+  if (verbose >= 2) {
+    message("\nVerification Table:\n")
+    message(paste(rep("-", 90), collapse = ""))
+    cat("\n")
+    print(verification_table, row.names = FALSE)
+    cat("\n")
+    message(paste(rep("-", 90), collapse = ""))
+  }
   
   return(verification_table)
 }
@@ -344,26 +357,36 @@ create_bins <- function(x, breaks, ...) {
 #'
 #'   # Select B-spline transformation
 #'   bs_fun <- select_trans_fun("b_spline")
-select_trans_fun <- function(trans_type) { 
+select_trans_fun <- function(trans_type, verbose = 1) { 
   
   if (trans_type == "none") {
-    message("No transformation selected: trans_type = 'none'")
+    if (verbose >= 2) {
+      message("No transformation selected: trans_type = 'none'")
+    }
     return("none")  # If no transformation is needed, return "none"
   }
   if (trans_type == "polynomial") {
-    message("Selected polynomial transformation using function stats::poly.")
+    if (verbose >= 2) {
+      message("Selected polynomial transformation using function stats::poly.")
+    }
     return(stats::poly)
     
   } else if (trans_type == "natural_spline") {
-    message("Selected natural cubic spline transformation using function splines::ns.")
+    if (verbose >= 2) {
+      message("Selected natural cubic spline transformation using function splines::ns.")
+    }
     return(splines::ns)
     
   } else if (trans_type == "b_spline") {
-    message("Selected B-spline transformation using function splines::bs.")
+    if (verbose >= 2) {
+      message("Selected B-spline transformation using function splines::bs.")
+    }
     return(splines::bs)
     
   } else if (trans_type == "bin") {
-    message("Selected bin transformation using function create_bins (in aggregation_functions.R).")
+    if (verbose >= 2) {
+      message("Selected bin transformation using function create_bins (in aggregation_functions.R).")
+    }
     return(create_bins)
     
   } else {
@@ -400,10 +423,12 @@ select_trans_fun <- function(trans_type) {
 #'   trans_args <- list(degree = 3)
 #'   updated_args <- check_trans(stats::poly, trans_args)
 #'   # updated_args now contains degree = 3 and raw = TRUE.
-check_trans <- function(fun, args) {
+check_trans <- function(fun, args, verbose = 1) {
   
   if (identical(fun, "none")) {
-    message("No transformation function provided (trans_type = 'none'). Skipping transformation.")
+    if (verbose >= 2) {
+      message("No transformation function provided (trans_type = 'none'). Skipping transformation.")
+    }
     return(args)  # If no transformation is needed, return the original args
   }
   
@@ -418,7 +443,9 @@ check_trans <- function(fun, args) {
   # If the function is stats::poly (for polynomial transformation),
   # force the argument 'raw' to TRUE.
   if (identical(fun, stats::poly)) {
-    message("Polynomial transformation selected using stats::poly. Forcing argument 'raw' to TRUE.")
+    if (verbose >= 2) {
+      message("Polynomial transformation selected using stats::poly. Forcing argument 'raw' to TRUE.")
+    }
     args$raw <- TRUE
   }
   
@@ -427,8 +454,10 @@ check_trans <- function(fun, args) {
     args$breaks <- base::sort(args$breaks)
   }
   
-  message("Please make sure the following transformation arguments are correct:")
-  print(args)
+  if (verbose >= 2) {
+    message("Please make sure the following transformation arguments are correct:")
+    print(args)
+  }
   
   # Return the (possibly modified) arguments.
   args
@@ -454,27 +483,37 @@ check_trans <- function(fun, args) {
 #' )
 #' updated_args <- check_spatial_agg_args(spatial_agg_args)
 #' # updated_args now contains fun = "weighted_mean", stack_apply = FALSE, and append_cols = NULL.
-check_spatial_agg_args <- function(args) {
+check_spatial_agg_args <- function(args, verbose = 1) {
   if (is.null(args$fun)) {
-    message("No spatial aggregation function provided. Setting 'fun' to 'weighted_mean'.")
+    if (verbose >= 2) {
+      message("No spatial aggregation function provided. Setting 'fun' to 'weighted_mean'.")
+    }
     args$fun <- "weighted_mean"
   }
   if (is.null(args$stack_apply)) {
-    message("No 'stack_apply' value provided. Setting 'stack_apply' to FALSE.")
+    if (verbose >= 2) {
+      message("No 'stack_apply' value provided. Setting 'stack_apply' to FALSE.")
+    }
     args$stack_apply <- FALSE
   }
   if (is.null(args$default_weight)) {
-    message("No 'default_weight' value provided. Setting 'default_weight' to 0, which replaces NA weights with 0")
+    if (verbose >= 2) {
+      message("No 'default_weight' value provided. Setting 'default_weight' to 0, which replaces NA weights with 0")
+    }
     args$default_weight <- 0
   }
   if (!is.null(args$append_cols)) {
-    message("Appended columns found in spatial_agg_args. Removing them for now; they will be added manually after the aggregation.")
+    if (verbose >= 2) {
+      message("Appended columns found in spatial_agg_args. Removing them for now; they will be added manually after the aggregation.")
+    }
     args$append_cols <- NULL
   }
   
-  message("Spatial aggregation arguments have been checked successfully.")
-  message("Passing the following arguments to exact_extract:")
-  print(args)
+  if (verbose >= 2) {
+    message("Spatial aggregation arguments have been checked successfully.")
+    message("Passing the following arguments to exact_extract:")
+    print(args)
+  }
   
   return(args)
 }
@@ -564,7 +603,8 @@ aggregation_to_daily <- function(subdaily_raster, fun = "none") {
 #'   num_vars_none <- infer_num_trans_var(trans_type = "none", trans_args = list())
 #'   print(num_vars_none)  # Expected output: 1
 #'
-#' @export
+#' @keywords internal
+#' @noRd
 infer_num_trans_var <- function(trans_type, trans_args) {
   if (trans_type == "none") {
     # If transformation type is "none", return 1
@@ -976,7 +1016,7 @@ trans_spatial_agg_points <- function(raster_subset,
 trans_spatial_agg <- function(env_rast_list,
                               sec_weight_rast_list,
                               polygons,
-                              buffered_extent,
+                              crop_extent,
                               trans_type,
                               trans_fun,
                               checked_trans_args,
@@ -987,7 +1027,8 @@ trans_spatial_agg <- function(env_rast_list,
                               sec_weights = TRUE,
                               max_cells = 3e7,
                               save_batch_output = TRUE,
-                              overwrite_batch_output = FALSE) {
+                              overwrite_batch_output = FALSE,
+                              verbose = 1) {
   
   # Start overall timer
   overall_start <- Sys.time()
@@ -996,13 +1037,15 @@ trans_spatial_agg <- function(env_rast_list,
   geom_types <- st_geometry_type(polygons)
   is_points <- all(grepl("POINT", geom_types))
   
-  if (is_points) {
-    message("Point geometries detected. Using optimized point extraction method: \n
+  if (verbose >= 2) {
+    if (is_points) {
+      message("Point geometries detected. Using optimized point extraction method: \n
     1. Extract raster values at points \n
     2. Apply transformation to extracted values. \n
     Note: The order of operation is reverse compared to polygon geometries, to gain efficiency by applying the transformation only to extracted cells. Secondary weights are not supported with point geometries.")
-  } else {
-    message("Polygon geometries detected. Using standard polygon aggregation method")
+    } else {
+      message("Polygon geometries detected. Using standard polygon aggregation method")
+    }
   }
   
   # Validate secondary weights with points
@@ -1014,10 +1057,10 @@ trans_spatial_agg <- function(env_rast_list,
   # Buffer points once at the beginning for efficiency
   polygons_buffered <- NULL
   if (is_points) {
-    point_buffer <- 0.0000000001  # buffer distance in degrees
+    point_buffer <- 1e-10  # buffer distance in degrees
     point_crs <- st_crs(polygons)
     
-    if (is.na(point_crs) || is.null(point_crs)) {
+    if (is.na(point_crs) || is.null(point_crs)) { 
       stop("Points must have a defined CRS for buffering")
     }
     
@@ -1052,15 +1095,11 @@ trans_spatial_agg <- function(env_rast_list,
     }
     
     period_start <- Sys.time()
-    message("---------------------------------------------------")
-    message("Processing weighting period: ", period_name, " (", i, "/", length(env_rast_list), ")")
-    message("Time period: ", weighting_periods$Date_Range[i])
-    message("---------------------------------------------------")
-    
+    if (verbose >= 1) {
+      cat("  Period ", i, "/", length(env_rast_list), ": ", weighting_periods$Date_Range[i], "\n", sep = "")
+    }
     # Step 1: Secondary Weight Raster Processing
-    step1_start <- Sys.time()
     if (sec_weights) {
-      message(" [Step 1] Cropping and resampling secondary weight raster...")
       
       # sec_weight_rast_list[[i]] is already a SpatRaster layer
       sec_weight_rast <- sec_weight_rast_list[[i]]
@@ -1072,17 +1111,13 @@ trans_spatial_agg <- function(env_rast_list,
              ifelse(is.null(sec_weight_epsg) || is.na(sec_weight_epsg), "Unknown", paste0("EPSG:", sec_weight_epsg)))
       }
       
-      terra::window(sec_weight_rast) <- buffered_extent
+      terra::window(sec_weight_rast) <- crop_extent
       env_rast_subset <- env_rast_list[[i]]
       agg_weights <- resample(sec_weight_rast, env_rast_subset, method = "average")
     } else {
-      message(" [Step 1] Secondary weights not provided; proceeding with area weights only")
       env_rast_subset <- env_rast_list[[i]]
       agg_weights <- "area"
     }
-    step1_end <- Sys.time()
-    message("          Finished. Elapsed time: ",
-            round(difftime(step1_end, step1_start, units = "secs"), 2), " seconds.")
     
     # Determine processing strategy
     dims <- dim(env_rast_subset)
@@ -1092,6 +1127,32 @@ trans_spatial_agg <- function(env_rast_list,
       # Process whole period at once (single batch)
       actual_layers <- dims[3]
       batch_file <- file.path(batch_dir, sprintf("period_%03d_batch_%03d_nlayer_%04d.rds", i, 1, actual_layers))
+      
+      # Initialize progress bar for single batch
+      pb <- tryCatch({
+        if (verbose >= 1) {
+          progress::progress_bar$new(
+            format = "  [:bar] :percent | Batch :current/:total | ETA: :eta",
+            total = 1,
+            clear = FALSE,
+            width = 80,
+            force = TRUE,  # Force display even when output is redirected
+            show_after = 0  # Show immediately (important for Positron compatibility)
+          )
+        } else {
+          NULL
+        }
+      }, error = function(e) {
+        if (verbose >= 1) {
+          message("Note: progress package not available, using message-based progress")
+        }
+        NULL
+      })
+      
+      if (!is.null(pb)) {
+        pb$tick(0)  # Initialize progress bar display
+        flush.console()  # Ensure it's displayed
+      }
       
       # Check if file exists when not overwriting
       if (save_batch_output && file.exists(batch_file) && !overwrite_batch_output) {
@@ -1106,6 +1167,10 @@ trans_spatial_agg <- function(env_rast_list,
                   " layers but expected ", actual_layers, ")")
         }
         
+        if (!is.null(pb)) {
+          pb$tick(1)
+          # Don't call terminate() - let it end naturally to avoid extra newline
+        }
         message("Skipped period ", i, " (single batch exists)")
         
         # Store batch file info
@@ -1118,7 +1183,7 @@ trans_spatial_agg <- function(env_rast_list,
         # Process the period
         if (is_points) {
           # Use point-optimized method (no secondary weights for points)
-          spatial_agg_clean <- trans_spatial_agg_points(
+          spatial_agg_clean <- suppressMessages(trans_spatial_agg_points(
             raster_subset = env_rast_subset,
             trans_fun = trans_fun,
             checked_trans_args = checked_trans_args,
@@ -1126,10 +1191,10 @@ trans_spatial_agg <- function(env_rast_list,
             agg_weights = NULL,
             spatial_agg_args = spatial_agg_args,
             poly_id_col = poly_id_col
-          )
+          ))
         } else {
           # Use standard polygon method
-          spatial_agg_clean <- trans_spatial_agg_polygons(
+          spatial_agg_clean <- suppressMessages(trans_spatial_agg_polygons(
             raster_subset = env_rast_subset,
             trans_fun = trans_fun,
             checked_trans_args = checked_trans_args,
@@ -1137,7 +1202,12 @@ trans_spatial_agg <- function(env_rast_list,
             agg_weights = agg_weights,
             spatial_agg_args = spatial_agg_args,
             poly_id_col = poly_id_col
-          )
+          ))
+        }
+        
+        if (!is.null(pb)) {
+          pb$tick(1)
+          # Don't call terminate() - let it end naturally to avoid extra newline
         }
         
         if (save_batch_output) {
@@ -1169,10 +1239,34 @@ trans_spatial_agg <- function(env_rast_list,
       
     } else {
       # Process in batches with optional disk saving for memory efficiency
-      message(" [Info] Dimensions: nrow = ", dims[1], ", ncol = ", dims[2], ", nlayers = ", dims[3])
       num_layers <- min(floor(max_cells / (dims[1] * dims[2])), max_layers)
       num_batches <- ceiling(dims[3] / num_layers)
-      message("        Splitting into ", num_batches, " batches with max ", num_layers, " layers each.")
+      
+      # Initialize progress bar for multiple batches
+      pb <- tryCatch({
+        if (verbose >= 1) {
+          progress::progress_bar$new(
+            format = "  [:bar] :percent | Batch :current/:total | ETA: :eta",
+            total = num_batches,
+            clear = FALSE,
+            width = 80,
+            force = TRUE,  # Force display even when output is redirected
+            show_after = 0  # Show immediately (important for Positron compatibility)
+          )
+        } else {
+          NULL
+        }
+      }, error = function(e) {
+        if (verbose >= 1) {
+          message("Note: progress package not available, using message-based progress")
+        }
+        NULL
+      })
+      
+      if (!is.null(pb)) {
+        pb$tick(0)  # Initialize progress bar display
+        flush.console()  # Ensure it's displayed
+      }
       
       if (save_batch_output) {
         batch_files <- character()
@@ -1205,25 +1299,20 @@ trans_spatial_agg <- function(env_rast_list,
                  "Incompatible file deleted. Please re-run to regenerate all batches with consistent settings.")
           }
           
-          message("Skipped batch ", j, "/", num_batches, " (exists)")
+          if (!is.null(pb)) {
+            pb$tick(1)
+          } else {
+            message("  Skipped batch ", j, "/", num_batches, " (exists)")
+          }
           batch_files <- c(batch_files, batch_file)
           next
         }
-        
-        # Show progress
-        piece_names <- names(env_rast_subset[[start_layer:end_layer]])
-        if (length(piece_names) > 0) {
-          first_date <- as.Date(piece_names[1])
-          last_date <- as.Date(piece_names[length(piece_names)])
-          message("\n -------- Processing batch ", j, "/", num_batches, " from ", first_date, " to ", last_date, " --------")
-        }
-        
         # Process batch
         raster_batch <- env_rast_subset[[start_layer:end_layer]]
         
         if (is_points) {
           # Use point-optimized method
-          output_batch <- trans_spatial_agg_points(
+          output_batch <- suppressMessages(trans_spatial_agg_points(
             raster_subset = raster_batch,
             trans_fun = trans_fun,
             checked_trans_args = checked_trans_args,
@@ -1231,10 +1320,10 @@ trans_spatial_agg <- function(env_rast_list,
             agg_weights = NULL,
             spatial_agg_args = spatial_agg_args,
             poly_id_col = poly_id_col
-          )
+          ))
         } else {
           # Use standard polygon method
-          output_batch <- trans_spatial_agg_polygons(
+          output_batch <- suppressMessages(trans_spatial_agg_polygons(
             raster_subset = raster_batch,
             trans_fun = trans_fun,
             checked_trans_args = checked_trans_args,
@@ -1242,14 +1331,20 @@ trans_spatial_agg <- function(env_rast_list,
             agg_weights = agg_weights,
             spatial_agg_args = spatial_agg_args,
             poly_id_col = poly_id_col
-          )
+          ))
+        }
+        
+        if (!is.null(pb)) {
+          pb$tick(1)  # Update progress after batch completes
+          flush.console()  # Ensure update is displayed
+        } else {
+          message("  Completed batch ", j, "/", num_batches)
         }
         
         if (save_batch_output) {
           # Save to disk and clear from memory
           tryCatch({
             saveRDS(output_batch, batch_file, compress = FALSE)
-            message(" [Step 5] Saved batch ", j, "/", num_batches)
           }, error = function(e) {
             stop("ERROR saving batch ", sprintf("period_%03d_batch_%03d", i, j), ": ", e$message)
           })
@@ -1279,14 +1374,14 @@ trans_spatial_agg <- function(env_rast_list,
     }
     
     period_end <- Sys.time()
-    total_period_time <- round(difftime(period_end, period_start, units = "secs"), 2)
-    message("Completed weighting period: ", period_name, " in total: ", total_period_time, " seconds.\n")
   }
   
   # Now combine all periods into final result
-  message("\n===================================================")
-  message("COMBINING ALL PERIODS INTO FINAL RESULT")
-  message("===================================================")
+  if (verbose >= 2) {
+    message("\n===================================================")
+    message("COMBINING ALL PERIODS INTO FINAL RESULT")
+    message("===================================================")
+  }
   
   spatial_agg <- NULL
   
@@ -1296,16 +1391,20 @@ trans_spatial_agg <- function(env_rast_list,
       period_name <- paste0("period_", i)
     }
     
-    message("Loading period ", i, "/", length(period_info), ": ", period_name)
+    if (verbose >= 2) {
+      message("Loading period ", i, "/", length(period_info), ": ", period_name)
+    }
     
     if (!period_info[[i]]$batched) {
       # Data already in memory, no batching was used (only when save_batch_output = FALSE)
       spatial_agg_clean <- period_info[[i]]$data
-      
+    
     } else if (save_batch_output || !is.null(period_info[[i]]$batch_files)) {
       # Load and combine batches from disk
       batch_files <- period_info[[i]]$batch_files
-      message("  Combining ", length(batch_files), " batch file(s)...")
+      if (verbose >= 2) {
+        message("  Combining ", length(batch_files), " batch file(s)...")
+      }
       
       spatial_agg_clean <- NULL
       for (batch_file in batch_files) {
@@ -1324,7 +1423,9 @@ trans_spatial_agg <- function(env_rast_list,
     } else {
       # Combine batches from memory
       period_batches <- period_info[[i]]$batches_in_memory
-      message("  Combining ", length(period_batches), " batches from memory...")
+      if (verbose >= 2) {
+        message("  Combining ", length(period_batches), " batches from memory...")
+      }
       
       spatial_agg_clean <- period_batches[[1]]
       if (length(period_batches) > 1) {
@@ -1342,22 +1443,30 @@ trans_spatial_agg <- function(env_rast_list,
       spatial_agg <- cbind(spatial_agg, spatial_agg_clean[, !c("poly_id", "trans_var"), with = FALSE])
     }
     
-    message("  Period ", i, " combined successfully")
+    if (verbose >= 2) {
+      message("  Period ", i, " combined successfully")
+    }
   }
   
   # Clean up all batch files only after successful completion
   if (save_batch_output && !is.null(batch_dir) && dir.exists(batch_dir)) {
-    message("\nCleaning up temporary batch files...")
+    if (verbose >= 2) {
+      message("\nCleaning up temporary batch files...")
+    }
     unlink(batch_dir, recursive = TRUE)
-    message("Cleanup complete")
+    if (verbose >= 2) {
+      message("Cleanup complete")
+    }
   }
   
   overall_end <- Sys.time()
   overall_total <- round(difftime(overall_end, overall_start, units = "min"), 2)
-  message("\n===================================================")
-  message("All processing completed in ", overall_total, " minutes.")
-  message("Final result has ", ncol(spatial_agg), " columns.")
-  message("===================================================")
+  if (verbose >= 2) {
+    message("\n===================================================")
+    message("All processing completed in ", overall_total, " minutes.")
+    message("Final result has ", ncol(spatial_agg), " columns.")
+    message("===================================================")
+  }
   
   return(spatial_agg)
 }
@@ -1444,7 +1553,7 @@ add_metadata_cols <- function(dt, trans_type, metadata = NULL, trans_args) {
 #'                    "2020-01-02" = c(NA, 2, NA, 4, 5))
 #'   missing_polys <- get_missing_vals(dt, date_columns = c("2020-01-01", "2020-01-02"))
 #' }
-get_missing_vals <- function(dt, date_columns) {
+get_missing_vals <- function(dt, date_columns, verbose = 1) {
 
   # Make a shallow copy to avoid .internal.selfref warnings.
   dt <- copy(dt)
@@ -1469,10 +1578,14 @@ get_missing_vals <- function(dt, date_columns) {
   dt[, any_na := NULL]
   
   if (length(polys_with_na) > 0) {
-    message("The following polygon(s) have missing values in at least one date column. \n  This can happen if all cells in the environmental raster that a polygon covers are missing values. This is often the case for islands. \n  Polygon IDs: ", 
-            paste(polys_with_na, collapse = ", "))    # print(polys_with_na)
+    if (verbose >= 2) {
+      message("The following polygon(s) have missing values in at least one date column. \n  This can happen if all cells in the environmental raster that a polygon covers are missing values. This is often the case for islands. \n  Polygon IDs: ", 
+              paste(polys_with_na, collapse = ", "))    # print(polys_with_na)
+    }
   } else {
-    message("No missing values found for any polygon.")
+    if (verbose >= 2) {
+      message("No missing values found for any polygon.")
+    }
   }
   
   return(polys_with_na)
@@ -1506,6 +1619,8 @@ get_missing_vals <- function(dt, date_columns) {
 #'   
 #'   arrow::write_parquet(area_weights, file.path(paths$path_out_folder, "area_weights.parquet"))
 #' }
+#' 
+#' @export
 get_area_weights <- function(raster, polygons, polygon_id_col) {
   
   # Check that the polygons object contains the specified polygon_id_col
@@ -1590,7 +1705,9 @@ get_area_weights <- function(raster, polygons, polygon_id_col) {
 #'     temp_agg_fun = mean
 #'   )
 #'   aggregated_DT <- temp_agg(spatial_output, agg_args)
-temp_agg <- function(spatial_output, agg_args, keep_metadata = TRUE) {
+#' 
+#' @export
+temp_agg <- function(spatial_output, agg_args, keep_metadata = TRUE, verbose = 1) {
   
   temp_agg_start <- Sys.time()
   
@@ -1609,24 +1726,32 @@ temp_agg <- function(spatial_output, agg_args, keep_metadata = TRUE) {
   in_temp_res <- get_temp_res(date_cols)
   
   if (out_temp_res == in_temp_res) {
-    message("Output temporal resolution is the same as input temporal resolution. Returning original data.")
+    if (verbose >= 1) {
+      message("Output temporal resolution is the same as input temporal resolution. Returning original data.")
+    }
     return(spatial_output)
   }
   
   
-  message("Aggregating from ", in_temp_res, " to ", out_temp_res)
+  if (verbose >= 2) {
+    message("Aggregating from ", in_temp_res, " to ", out_temp_res)
+  }
   
   
   # Ensure the aggregation function is defined; default to sum.
   temp_agg_fun <- agg_args$temp_agg_fun
   if (is.null(temp_agg_fun)) {
     temp_agg_fun <- mean
-    message("temp_agg_fun not specified by user, defaulting to mean for aggregating over time (if out_temp_res is different from input temporal resolution)")
+    if (verbose >= 2) {
+      message("temp_agg_fun not specified by user, defaulting to mean for aggregating over time (if out_temp_res is different from input temporal resolution)")
+    }
   }
   
   extra_arg_names <- setdiff(names(agg_args), c("out_temp_res", "temp_agg_fun"))
   if (length(extra_arg_names) > 0) {
-    message("Additional aggregation arguments: ", paste(extra_arg_names, collapse = ", "))
+    if (verbose >= 2) {
+      message("Additional aggregation arguments: ", paste(extra_arg_names, collapse = ", "))
+    }
   }
   
   # # Define identifier columns.
@@ -1684,8 +1809,10 @@ temp_agg <- function(spatial_output, agg_args, keep_metadata = TRUE) {
   setorder(result_dt, poly_id)
   
   temp_agg_end <- Sys.time()
-  message("Temporal aggregation completed in ", 
-          round(difftime(temp_agg_end, temp_agg_start, units = "secs"), 2), " seconds.")
+  if (verbose >= 2) {
+    message("Temporal aggregation completed in ", 
+            round(difftime(temp_agg_end, temp_agg_start, units = "secs"), 2), " seconds.")
+  }
   
   return(result_dt)
 }
@@ -1696,7 +1823,7 @@ temp_agg <- function(spatial_output, agg_args, keep_metadata = TRUE) {
 
 
 
-rename_trans_var <- function(spatial_agg, trans_type, trans_args = list()) {
+rename_trans_var <- function(spatial_agg, trans_type, trans_args = list(), verbose = 1) {
   # Check that the 'trans_var' column exists in spatial_agg.
   if (!("trans_var" %in% names(spatial_agg))) {
     stop("The input data.table does not have a 'trans_var' column.")
@@ -1710,18 +1837,24 @@ rename_trans_var <- function(spatial_agg, trans_type, trans_args = list()) {
   
   # For trans_type = none: rename trans_var to 'value'
   if (trans_type == "none") {
-    message("Renaming trans_var to 'value' for trans_type = 'none'")
+    if (verbose >= 2) {
+      message("Renaming trans_var to 'value' for trans_type = 'none'")
+    }
     spatial_agg[, trans_var := rep("value", .N)]
   }
   
   # For polynomial transformation: rename trans_var values to "degree_x"
   else if (trans_type == "polynomial") {
-    message("Renaming trans_var for polynomial transformation: prefixing with 'degree_'.")
+    if (verbose >= 2) {
+      message("Renaming trans_var for polynomial transformation: prefixing with 'degree_'.")
+    }
     spatial_agg[, trans_var := paste0("degree_", trans_var)]
     
     # For spline transformation: rename trans_var values to "term_x"
   } else if (trans_type == "natural_spline" | trans_type == "b_spline") {
-    message("Renaming trans_var for spline transformation: prefixing with 'term_'.")
+    if (verbose >= 2) {
+      message("Renaming trans_var for spline transformation: prefixing with 'term_'.")
+    }
     spatial_agg[, trans_var := paste0("term_", trans_var)]
     
     # For bin transformation: use boundary_knots to generate bin names.
@@ -1745,8 +1878,10 @@ rename_trans_var <- function(spatial_agg, trans_type, trans_args = list()) {
       }
     })
     
-    message("Renaming trans_var for bin transformation using boundary_knots. Generated names: ",
-            paste(list_names, collapse = ", "))
+    if (verbose >= 2) {
+      message("Renaming trans_var for bin transformation using boundary_knots. Generated names: ",
+              paste(list_names, collapse = ", "))
+    }
     
     # Map each numeric trans_var to the corresponding name from list_names.
     # Issue a warning if the maximum value in trans_var doesn't match the expected number of bins.

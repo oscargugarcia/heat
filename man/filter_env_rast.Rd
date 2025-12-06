@@ -4,7 +4,7 @@
 \alias{filter_env_rast}
 \title{Filter Raster by Date Range}
 \usage{
-filter_env_rast(env_rast, start_date, end_date)
+filter_env_rast(env_rast, start_date, end_date, verbose = 1)
 }
 \arguments{
 \item{:}{\itemize{

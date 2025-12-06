@@ -4,7 +4,7 @@
 \alias{check_spatial_file}
 \title{Check and Clean an sf Spatial Object}
 \usage{
-check_spatial_file(polygons, source = NULL)
+check_spatial_file(polygons, source = NULL, verbose = 1)
 }
 \arguments{
 \item{polygons}{An sf object to validate and clean.}
@@ -21,4 +21,12 @@ types, applies \code{st_make_valid()} to polygons, wraps dateline crossings, and
 checks. Designed to be used both after reading files and when the user supplies an sf object
 directly.
 }
-\keyword{internal}
+\examples{
+\dontrun{
+  # Validate and clean an sf object
+  cleaned_polygons <- check_spatial_file(my_polygons)
+  
+  # With source information for better error messages
+  cleaned_polygons <- check_spatial_file(my_polygons, source = "my_data.gpkg")
+}
+}

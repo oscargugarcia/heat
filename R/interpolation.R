@@ -29,11 +29,11 @@ NULL
 #'   in the output layer names.
 #'
 #' @note
-#'   This function is designed to work with the `tmin_tmax_interpolation()` 
+#'   This function is designed to work with the `interpol_min_max()` 
 #'   framework and can be passed as the `interpol_fun` argument. When using
 #'   this interpolation method, set `daily_agg_fun = "none"` since the output
 #'   is already at daily resolution.
-mean_interpolation <- function(tmin, tmax) {
+mean_interpol <- function(tmin, tmax) {
   # Get the layer names from the tmin raster
   dates <- names(tmin) 
   
@@ -80,10 +80,10 @@ mean_interpolation <- function(tmin, tmax) {
 #'
 #' @examples
 #'   # Assuming tmin and tmax are numeric vectors of length equal to the number of days:
-#'   hourly_temperatures <- sinusoidal_interpolation(tmin = c(15, 16, 14), 
+#'   hourly_temperatures <- sinusoidal_interpol(tmin = c(15, 16, 14), 
 #'                                                   tmax = c(22, 23, 21), 
 #'                                                   hour = 1:24)
-sinusoidal_interpolation <- function(tmin, tmax, hour = 1:24) {
+sinusoidal_interpol <- function(tmin, tmax, hour = 1:24) {
   # Broadcast the tmin and tmax temperatures for all hours
   # length(tmin) and length(tmax) should be the same and correspond to days
   
@@ -139,9 +139,9 @@ sinusoidal_interpolation <- function(tmin, tmax, hour = 1:24) {
 #' Interpolate Daily Minimum and Maximum Temperatures to Obtain Hourly Values
 #'
 #' @description
-#'   This function interpolates daily minimum and maximum temperature raster values into 
-#'   hourly temperature values using a specified interpolation function. The function 
-#'   also aggregates the hourly temperature data back to daily values if requested.
+#'   This function interpolates daily minimum and maximum raster values using a specified 
+#'   interpolation function. The function 
+#'   also aggregates the hourly data back to daily values if requested.
 #'   It handles large raster datasets by splitting them into manageable batches to avoid 
 #'   processing limitations.
 #'
@@ -162,17 +162,19 @@ sinusoidal_interpolation <- function(tmin, tmax, hour = 1:24) {
 #'         interpolated hourly values based on the provided minimum and maximum temperatures.
 #'
 #' @examples
-#'   # Example using the tmin_tmax_interpolation function:
-#'   result <- tmin_tmax_interpolation(
+#'   # Example using the interpol_min_max function:
+#'   result <- interpol_min_max(
 #'     paths = list(path_tmin_rast = "path/to/tmin",
 #'                  path_tmax_rast = "path/to/tmax"),
 #'     polygons = my_polygons,
 #'     boundary_dates = as.Date(c("2022-01-01", "2022-01-07")),
-#'     interpol_fun = sinusoidal_interpolation,
+#'     interpol_fun = sinusoidal_interpol,
 #'     interpol_args = list(),
 #'     daily_agg_fun = "mean"
 #'   )
-tmin_tmax_interpolation <- function(paths, polygons, boundary_dates, interpol_fun,  interpol_args = NULL, daily_agg_fun = "none", max_cells = 3e7, max_output_layers = 30000, save_interpol_rast = FALSE) {
+#' 
+#' @export
+interpol_min_max <- function(paths, polygons, boundary_dates, interpol_fun,  interpol_args = NULL, daily_agg_fun = "none", max_cells = 3e7, max_output_layers = 30000, save_interpol_rast = FALSE) {
   
   # ---- Step 1: Load tmin and tmax rasters -----
 
@@ -187,12 +189,20 @@ tmin_tmax_interpolation <- function(paths, polygons, boundary_dates, interpol_fu
   tmin_raster <- rast(file.path(paths$path_tmin_rast, files_tmin))
   tmax_raster <- rast(file.path(paths$path_tmax_rast, files_tmax))
   
-  # Create a buffered extent around the input polygons using the raster's resolution
-  buffered_extent <- buffer_polygons(tmin_raster, polygons, buffer_factor = 1)
+  # Crop raster to spatial data bounding box for efficiency
+  # For point geometries, buffer by one cell to ensure cells containing points are included
+  # For polygon geometries, use extent directly
+  geom_types <- sf::st_geometry_type(polygons)
+  is_points <- all(grepl("POINT", geom_types))
   
-  # Crop the extent of the raster to the polygon buffer (terra::window is faster than terra::crop. To undo the crop, load the raster back in with terra::rast())
-  terra::window(tmin_raster) <- buffered_extent
-  terra::window(tmax_raster) <- buffered_extent
+  if (is_points) {
+    crop_extent <- buffer_extent(tmin_raster, polygons, buffer_factor = 1)
+  } else {
+    crop_extent <- terra::ext(polygons)
+  }
+  
+  terra::window(tmin_raster) <- crop_extent
+  terra::window(tmax_raster) <- crop_extent
   
   # Check if boundary_dates are provided
   if (!is.null(boundary_dates)) {
@@ -210,9 +220,9 @@ tmin_tmax_interpolation <- function(paths, polygons, boundary_dates, interpol_fu
   # ---- Step 2: Subset the raster into batches -----
   
   # Determine which interpolation method is being used
-  interpol_method_name <- if (identical(interpol_fun, sinusoidal_interpolation)) {
+  interpol_method_name <- if (identical(interpol_fun, sinusoidal_interpol)) {
     "sinusoidal interpolation"
-  } else if (identical(interpol_fun, mean_interpolation)) {
+  } else if (identical(interpol_fun, mean_interpol)) {
     "mean interpolation"
   } else {
     "custom interpolation function"
@@ -231,7 +241,7 @@ tmin_tmax_interpolation <- function(paths, polygons, boundary_dates, interpol_fu
   }
   
   # Get the factor by which the number of output layers is increased based on the interpolation function (e.g. sinuoidal_interpolation creates 24 layers (= hours) per day)
-  layer_increase_factor <- ifelse(identical(interpol_fun, sinusoidal_interpolation), 24, 1) 
+  layer_increase_factor <- ifelse(identical(interpol_fun, sinusoidal_interpol), 24, 1) 
   
   # Get the number of input layers that can be maximally processed at once
   max_layers <- floor(max_output_layers / layer_increase_factor)

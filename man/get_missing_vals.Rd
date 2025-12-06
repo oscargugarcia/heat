@@ -4,7 +4,7 @@
 \alias{get_missing_vals}
 \title{Count and Report Missing Date Values in a Data Table}
 \usage{
-get_missing_vals(dt, date_columns)
+get_missing_vals(dt, date_columns, verbose = 1)
 }
 \arguments{
 \item{dt}{A data.table (or data.frame) containing the date columns and a "poly_id" column.}
