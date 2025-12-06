@@ -28,16 +28,26 @@ NULL
 #'                     and all other columns are kept in the output.
 #'
 #' @param trans_type A character string indicating the type of transformation to apply
-#'                   to the raster data (e.g., "polynomial", "bin", etc.").
+#'                   to the raster data (e.g., "polynomial", "bin", "natural_spline", "b_spline", "none").
 #'
-#' @param trans_type A character string indicating the type of transformation to apply
-#'                   to the raster data (e.g., "polynomial", "bin", etc.).
+#' @param degree An integer specifying the polynomial degree (required if trans_type = "polynomial").
+#'
+#' @param breaks A numeric vector specifying the bin breakpoints (required if trans_type = "bin").
+#'
+#' @param knots A numeric vector specifying the knot positions for splines 
+#'              (required if trans_type = "natural_spline" or "b_spline").
 #'
 #' @param trans_args A list of additional parameters to be passed to the transformation
-#'                   function (e.g., polynomial degree).
+#' @param trans_args A list of additional custom parameters to be passed to the transformation
+#'                   function (e.g., Boundary.knots for splines). Optional. The provided degree, breaks, or knots
+#'                   parameters will be automatically added to this list, depending on the trans_type.
 #'
-#' @param temp_agg_args A list containing parameters for temporal aggregation, including
-#'                       the output temporal resolution (out_temp_res) and aggregation function.
+#' @param out_temp_res A character string specifying the output temporal resolution.
+#'                     Options are "daily", "monthly", or "yearly" (required).
+#'
+#' @param temp_agg_fun A character string specifying the temporal aggregation function.
+#'                     Options are "mean" (default) or "sum". If the output temporal resolution is the same as
+#'                     the input (daily), no temporal aggregation is performed.
 #'
 #' @param sec_weight_rast Either a character string specifying the directory path to secondary 
 #'                        weight rasters, OR a SpatRaster object containing the weight data. 
@@ -113,8 +123,12 @@ r2e2 <- function(env_rast,
                  polygons,
                  poly_id_col = NULL,
                  trans_type,
-                 trans_args,
-                 temp_agg_args,
+                 degree = NULL,
+                 breaks = NULL,
+                 knots = NULL,
+                 trans_args = list(),
+                 out_temp_res,
+                 temp_agg_fun = "mean",
                  sec_weight_rast = NULL,
                  boundary_dates = NULL,
                  spatial_agg_args = NULL,
@@ -211,7 +225,8 @@ r2e2 <- function(env_rast,
       boundary_dates = boundary_dates,
       trans_args = trans_args,
       spatial_agg_args = spatial_agg_args,
-      temp_agg_args = temp_agg_args,
+      out_temp_res = out_temp_res,
+      temp_agg_fun = temp_agg_fun,
       metadata = metadata
     )
     
@@ -410,8 +425,14 @@ r2e2 <- function(env_rast,
   # Select the transformation function (e.g., stats::poly for "polynomial")
   trans_fun <- select_trans_fun(trans_type, verbose = verbose)
   
+  # Merge the separate arguments (degree, breaks, knots) into trans_args
+  # These take precedence over any values in trans_args
+  if (!is.null(degree)) trans_args$degree <- degree
+  if (!is.null(breaks)) trans_args$breaks <- breaks
+  if (!is.null(knots)) trans_args$knots <- knots
+  
   # Check the function and its arguments
-  checked_trans_args <- check_trans(trans_fun, trans_args, verbose = verbose)
+  checked_trans_args <- check_trans(trans_fun, trans_args, trans_type, verbose = verbose)
   
   ## ---- 2.3 Spatial aggregation arguments ---------------------------------------------------------
   
@@ -534,16 +555,32 @@ r2e2 <- function(env_rast,
             "\n===========================================================================\n")
   }
   
+  # Validate and convert temp_agg_fun
+  if (!temp_agg_fun %in% c("mean", "sum")) {
+    stop("temp_agg_fun must be either 'mean' or 'sum'")
+  }
+  
+  temp_agg_fun_actual <- switch(temp_agg_fun,
+    "mean" = mean,
+    "sum" = sum
+  )
+  
+  # Build temp_agg_args from separate parameters
+  temp_agg_args <- list(
+    out_temp_res = out_temp_res,
+    temp_agg_fun = temp_agg_fun_actual
+  )
+  
   temp_agg_wide <- temp_agg(spatial_agg, temp_agg_args, keep_metadata = TRUE, verbose = verbose)
   
   if (save_wide && save_path_provided) {
     # Save as parquet (no geometry in output)
-    filename_temp_agg_wide <- paste0("aggregation_output_", temp_agg_args$out_temp_res, "_wide.parquet")
+    filename_temp_agg_wide <- paste0("aggregation_output_", out_temp_res, "_wide.parquet")
     write_parquet(temp_agg_wide, file.path(save_path, filename_temp_agg_wide), 
                   compression = compression)
     if (verbose >= 1) {
       message("Temporally aggregated output in wide format saved to: aggregation_output_", 
-              temp_agg_args$out_temp_res, "_wide.parquet")
+              out_temp_res, "_wide.parquet")
     }
   }
   
@@ -568,17 +605,17 @@ r2e2 <- function(env_rast,
     
     if (save_path_provided) {
       # Save as parquet (no geometry in output)
-      filename_temp_agg_long <- paste0("aggregation_output_", temp_agg_args$out_temp_res, "_long.parquet")
+      filename_temp_agg_long <- paste0("aggregation_output_", out_temp_res, "_long.parquet")
       write_parquet(temp_agg_long, file.path(save_path, filename_temp_agg_long), 
                     compression = compression)
       if (verbose >= 1) {
         message("Temporally aggregated output in long format saved to: aggregation_output_", 
-                temp_agg_args$out_temp_res, "_long.parquet")
+                out_temp_res, "_long.parquet")
       }
     }
     
     # Save long daily output
-    if (temp_agg_args$out_temp_res != "daily") {
+    if (out_temp_res != "daily") {
       if (verbose == 2) {
         message("\n---------------------------------------------------",
                 "\n   4.2 Reshape Daily Output to Long Format",
@@ -616,8 +653,8 @@ r2e2 <- function(env_rast,
   # Collect the relevant data frames based on out_format
   results <- list(
     spatial_agg = if (save_wide) spatial_agg else NULL,
-    spatial_agg_long = if (save_long && temp_agg_args$out_temp_res != "daily") spatial_agg_long else NULL,
-    temp_agg_wide = if (save_wide && temp_agg_args$out_temp_res != "daily") temp_agg_wide else NULL,
+    spatial_agg_long = if (save_long && out_temp_res != "daily") spatial_agg_long else NULL,
+    temp_agg_wide = if (save_wide && out_temp_res != "daily") temp_agg_wide else NULL,
     temp_agg_long = if (save_long) temp_agg_long else NULL,
     area_weights = area_weights
   )

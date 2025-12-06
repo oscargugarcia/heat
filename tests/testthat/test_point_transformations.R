@@ -163,11 +163,12 @@ compare_outputs <- function(actual, expected, tolerance = 1e-2, label = "output"
 #' @param poly_id_col Polygon/point ID column name
 #' @param boundary_dates Date range
 #' @param sec_weight_rast Secondary weight raster (NULL for points)
-#' @param temp_agg_args Temporal aggregation arguments
+#' @param out_temp_res Output temporal resolution
+#' @param temp_agg_fun Temporal aggregation function ("mean" or "sum")
 #' @param tolerance Numerical tolerance
 test_transformation <- function(trans_type, trans_args, baseline_dir,
                                 env_rast_path, polygons, poly_id_col, boundary_dates,
-                                sec_weight_rast, temp_agg_args, tolerance = 1e-2) {
+                                sec_weight_rast, out_temp_res, temp_agg_fun = "mean", tolerance = 1e-2) {
   
   # Load baseline outputs
   baseline_daily_path <- file.path(baseline_dir, "daily.rds")
@@ -199,7 +200,8 @@ test_transformation <- function(trans_type, trans_args, baseline_dir,
       poly_id_col = poly_id_col,
       trans_type = trans_type,
       trans_args = trans_args,
-      temp_agg_args = temp_agg_args,
+      out_temp_res = out_temp_res,
+      temp_agg_fun = temp_agg_fun,
       sec_weight_rast = sec_weight_rast,
       boundary_dates = boundary_dates,
       out_format = "long",
@@ -250,10 +252,8 @@ boundary_dates <- c(
   as.Date("2000-03-09")
 )
 
-temp_agg_args <- list(
-  out_temp_res = "monthly",
-  temp_agg_fun = mean
-)
+out_temp_res <- "monthly"
+temp_agg_fun <- "mean"
 
 # Tolerance for numerical comparisons
 tolerance <- 1e-2
@@ -286,7 +286,8 @@ test_transformation(
   poly_id_col = poly_id_col,
   boundary_dates = boundary_dates,
   sec_weight_rast = sec_weight_rast,
-  temp_agg_args = temp_agg_args,
+  out_temp_res = out_temp_res,
+  temp_agg_fun = temp_agg_fun,
   tolerance = tolerance
 )
 
@@ -304,7 +305,8 @@ test_transformation(
   poly_id_col = poly_id_col,
   boundary_dates = boundary_dates,
   sec_weight_rast = sec_weight_rast,
-  temp_agg_args = temp_agg_args,
+  out_temp_res = out_temp_res,
+  temp_agg_fun = temp_agg_fun,
   tolerance = tolerance
 )
 
@@ -322,7 +324,8 @@ test_transformation(
   poly_id_col = poly_id_col,
   boundary_dates = boundary_dates,
   sec_weight_rast = sec_weight_rast,
-  temp_agg_args = temp_agg_args,
+  out_temp_res = out_temp_res,
+  temp_agg_fun = temp_agg_fun,
   tolerance = tolerance
 )
 
@@ -340,7 +343,8 @@ test_transformation(
   poly_id_col = poly_id_col,
   boundary_dates = boundary_dates,
   sec_weight_rast = sec_weight_rast,
-  temp_agg_args = temp_agg_args,
+  out_temp_res = out_temp_res,
+  temp_agg_fun = temp_agg_fun,
   tolerance = tolerance
 )
 
@@ -358,7 +362,8 @@ test_transformation(
   poly_id_col = poly_id_col,
   boundary_dates = boundary_dates,
   sec_weight_rast = sec_weight_rast,
-  temp_agg_args = temp_agg_args,
+  out_temp_res = out_temp_res,
+  temp_agg_fun = temp_agg_fun,
   tolerance = tolerance
 )
 
