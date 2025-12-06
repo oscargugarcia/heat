@@ -747,36 +747,44 @@ clean_spatial_agg_output <- function(extraction_result, time_steps, polygons, po
 #' @param agg_weights A raster or a character string (e.g., "area") used as weights in the spatial aggregation.
 #' @param spatial_agg_args A list of arguments to pass to `exact_extract` for spatial aggregation (e.g., aggregation function, stack_apply).
 #' @param poly_id_col The name of the column in the polygons object that identifies each polygon.
+#' @param verbose Integer verbosity level (0 = silent, 1 = concise, 2 = detailed).
 #'
 #' @return A cleaned spatial aggregation output as a data table (or data frame) containing the polygon identifiers and aggregated values for each time step.
 #'
 #' @examples
 #' \dontrun{
 #'   result <- trans_spatial_agg_polygons(raster_subset, trans_fun, checked_trans_args,
-#'                                    polygons, agg_weights, spatial_agg_args, poly_id_col)
+#'                                    polygons, agg_weights, spatial_agg_args, poly_id_col, verbose = 1)
 #' }
-trans_spatial_agg_polygons <- function(raster_subset, trans_fun, checked_trans_args, polygons, agg_weights, spatial_agg_args, poly_id_col) {
+trans_spatial_agg_polygons <- function(raster_subset, trans_fun, checked_trans_args, polygons, agg_weights, spatial_agg_args, poly_id_col, verbose = 1) {
   
   step2_start <- Sys.time()
   
   
   if (identical(trans_fun, "none")) {
-    message(" [Step 2] Transformation skipped. trans_type = 'none'\n")
+    if (verbose >= 2) {
+      message(" [Step 2] Transformation skipped. trans_type = 'none'\n")
+    }
     transformed_raster_subset <- raster_subset
     
   } else {
-  message(" [Step 2] Applying transformation to environmental raster...")
-  transformed_raster_subset <- do.call(terra::app,
+    if (verbose >= 2) {
+      message(" [Step 2] Applying transformation to environmental raster...")
+    }
+    transformed_raster_subset <- do.call(terra::app,
                                        c(list(x = raster_subset, fun = trans_fun),
                                          checked_trans_args))
-  step2_end <- Sys.time()
-  message("          Finished. Elapsed time: ",
-          round(difftime(step2_end, step2_start, units = "secs"), 2), " seconds.")
-  
+    step2_end <- Sys.time()
+    if (verbose >= 2) {
+      message("          Finished. Elapsed time: ",
+              round(difftime(step2_end, step2_start, units = "secs"), 2), " seconds.")
+    }
   }
 
   step3_start <- Sys.time()
-  message(" [Step 3] Spatial aggregation with exact_extract...")
+  if (verbose >= 2) {
+    message(" [Step 3] Spatial aggregation with exact_extract...")
+  }
   spatial_agg_raw <- do.call(exact_extract,
                              c(list(x = transformed_raster_subset,
                                     y = polygons,
@@ -784,18 +792,24 @@ trans_spatial_agg_polygons <- function(raster_subset, trans_fun, checked_trans_a
                                spatial_agg_args,
                                progress = FALSE))
   step3_end <- Sys.time()
-  message("          Finished. Elapsed time: ",
-          round(difftime(step3_end, step3_start, units = "secs"), 2), " seconds.")
+  if (verbose >= 2) {
+    message("          Finished. Elapsed time: ",
+            round(difftime(step3_end, step3_start, units = "secs"), 2), " seconds.")
+  }
 
   step4_start <- Sys.time()
-  message(" [Step 4] Cleaning spatial aggregation output...")
+  if (verbose >= 2) {
+    message(" [Step 4] Cleaning spatial aggregation output...")
+  }
   # raster_time_steps <- as.Date(names(raster_subset))
   raster_time_steps <- names(raster_subset)
   
   spatial_agg_clean <- clean_spatial_agg_output(spatial_agg_raw, raster_time_steps, polygons, poly_id_col)
   step4_end <- Sys.time()
-  message("          Finished. Elapsed time: ",
-          round(difftime(step4_end, step4_start, units = "secs"), 2), " seconds.")
+  if (verbose >= 2) {
+    message("          Finished. Elapsed time: ",
+            round(difftime(step4_end, step4_start, units = "secs"), 2), " seconds.")
+  }
 
   return(spatial_agg_clean)
 }
@@ -813,13 +827,14 @@ trans_spatial_agg_polygons <- function(raster_subset, trans_fun, checked_trans_a
 #' @param agg_weights Not used for point geometries (included for compatibility with polygon version).
 #' @param spatial_agg_args A list of spatial aggregation arguments (included for compatibility).
 #' @param poly_id_col The name of the column in the points_buffered object that identifies each point.
+#' @param verbose Integer verbosity level (0 = silent, 1 = concise, 2 = detailed).
 #'
 #' @return A data table containing the point identifiers, transformation variable indicators, and extracted/transformed values for each time step.
 #'
 #' @examples
 #' \dontrun{
 #'   result <- trans_spatial_agg_points(raster_subset, trans_fun, checked_trans_args,
-#'                                      points_buffered, agg_weights, spatial_agg_args, poly_id_col)
+#'                                      points_buffered, agg_weights, spatial_agg_args, poly_id_col, verbose = 1)
 #' }
 trans_spatial_agg_points <- function(raster_subset, 
                                           trans_fun, 
@@ -827,11 +842,14 @@ trans_spatial_agg_points <- function(raster_subset,
                                           points_buffered,
                                           agg_weights,
                                           spatial_agg_args, 
-                                          poly_id_col) {
+                                          poly_id_col,
+                                          verbose = 1) {
   
   step2_start <- Sys.time()
 
-  message(" [Step 2] Extracting raster values using exact_extract...")
+  if (verbose >= 2) {
+    message(" [Step 2] Extracting raster values using exact_extract...")
+  }
 
   # Use exact_extract with simple weighted mean
   # stack_apply = TRUE applies the function to each layer
@@ -856,8 +874,10 @@ trans_spatial_agg_points <- function(raster_subset,
   extracted_raw <- cbind(ID = seq_len(nrow(points_buffered)), extracted_df)
   
   step2_end <- Sys.time()
-  message("          Finished extraction. Elapsed time: ",
-          round(difftime(step2_end, step2_start, units = "secs"), 2), " seconds.")
+  if (verbose >= 2) {
+    message("          Finished extraction. Elapsed time: ",
+            round(difftime(step2_end, step2_start, units = "secs"), 2), " seconds.")
+  }
   
   
   # Step 3: Apply transformation to extracted values
@@ -867,11 +887,15 @@ trans_spatial_agg_points <- function(raster_subset,
   value_cols <- setdiff(names(extracted_raw), "ID")
   
   if (identical(trans_fun, "none")) {
-    message(" [Step 3] Transformation skipped. trans_type = 'none'")
+    if (verbose >= 2) {
+      message(" [Step 3] Transformation skipped. trans_type = 'none'")
+    }
     transformed_values <- extracted_raw
     
   } else {
-    message(" [Step 3] Applying transformation to extracted values...")
+    if (verbose >= 2) {
+      message(" [Step 3] Applying transformation to extracted values...")
+    }
     
     # Extract just the matrix of values
     values_matrix <- as.matrix(extracted_raw[, value_cols])
@@ -891,13 +915,17 @@ trans_spatial_agg_points <- function(raster_subset,
   }
   
   step3_end <- Sys.time()
-  message("          Finished transformation. Elapsed time: ",
-          round(difftime(step3_end, step3_start, units = "secs"), 2), " seconds.")
+  if (verbose >= 2) {
+    message("          Finished transformation. Elapsed time: ",
+            round(difftime(step3_end, step3_start, units = "secs"), 2), " seconds.")
+  }
   
   
   # Step 4: Format output to match polygon version structure
   step4_start <- Sys.time()
-  message(" [Step 4] Cleaning output...")
+  if (verbose >= 2) {
+    message(" [Step 4] Cleaning output...")
+  }
   
   if (identical(trans_fun, "none")) {
     # No transformation: simple reshape
@@ -954,8 +982,10 @@ trans_spatial_agg_points <- function(raster_subset,
   }
   
   step4_end <- Sys.time()
-  message("          Finished formatting. Elapsed time: ",
-          round(difftime(step4_end, step4_start, units = "secs"), 2), " seconds.")
+  if (verbose >= 2) {
+    message("          Finished formatting. Elapsed time: ",
+            round(difftime(step4_end, step4_start, units = "secs"), 2), " seconds.")
+  }
   
   return(result_dt)
 }
@@ -1123,124 +1153,9 @@ trans_spatial_agg <- function(env_rast_list,
     dims <- dim(env_rast_subset)
     total_cells <- dims[1] * dims[2] * dims[3]
     
-    if (total_cells <= max_cells & dims[3] <= max_layers) {
-      # Process whole period at once (single batch)
-      actual_layers <- dims[3]
-      batch_file <- file.path(batch_dir, sprintf("period_%03d_batch_%03d_nlayer_%04d.rds", i, 1, actual_layers))
-      
-      # Initialize progress bar for single batch
-      pb <- tryCatch({
-        if (verbose >= 1) {
-          progress::progress_bar$new(
-            format = "  [:bar] :percent | Batch :current/:total | ETA: :eta",
-            total = 1,
-            clear = FALSE,
-            width = 80,
-            force = TRUE,  # Force display even when output is redirected
-            show_after = 0  # Show immediately (important for Positron compatibility)
-          )
-        } else {
-          NULL
-        }
-      }, error = function(e) {
-        if (verbose >= 1) {
-          message("Note: progress package not available, using message-based progress")
-        }
-        NULL
-      })
-      
-      if (!is.null(pb)) {
-        pb$tick(0)  # Initialize progress bar display
-        flush.console()  # Ensure it's displayed
-      }
-      
-      # Check if file exists when not overwriting
-      if (save_batch_output && file.exists(batch_file) && !overwrite_batch_output) {
-        # Extract layer count from existing filename
-        filename <- basename(batch_file)
-        existing_layers <- as.integer(sub(".*_nlayer_(\\d+)\\.rds$", "\\1", filename))
-        
-        if (existing_layers != actual_layers) {
-          # Delete the incompatible batch file
-          file.remove(batch_file)
-          message("Deleted incompatible batch file '", filename, "' (had ", existing_layers, 
-                  " layers but expected ", actual_layers, ")")
-        }
-        
-        if (!is.null(pb)) {
-          pb$tick(1)
-          # Don't call terminate() - let it end naturally to avoid extra newline
-        }
-        message("Skipped period ", i, " (single batch exists)")
-        
-        # Store batch file info
-        period_info[[i]] <- list(
-          batched = TRUE,
-          batch_files = batch_file
-        )
-        
-      } else {
-        # Process the period
-        if (is_points) {
-          # Use point-optimized method (no secondary weights for points)
-          spatial_agg_clean <- suppressMessages(trans_spatial_agg_points(
-            raster_subset = env_rast_subset,
-            trans_fun = trans_fun,
-            checked_trans_args = checked_trans_args,
-            points_buffered = polygons_buffered,
-            agg_weights = NULL,
-            spatial_agg_args = spatial_agg_args,
-            poly_id_col = poly_id_col
-          ))
-        } else {
-          # Use standard polygon method
-          spatial_agg_clean <- suppressMessages(trans_spatial_agg_polygons(
-            raster_subset = env_rast_subset,
-            trans_fun = trans_fun,
-            checked_trans_args = checked_trans_args,
-            polygons = polygons,
-            agg_weights = agg_weights,
-            spatial_agg_args = spatial_agg_args,
-            poly_id_col = poly_id_col
-          ))
-        }
-        
-        if (!is.null(pb)) {
-          pb$tick(1)
-          # Don't call terminate() - let it end naturally to avoid extra newline
-        }
-        
-        if (save_batch_output) {
-          # Save as batch 1
-          tryCatch({
-            saveRDS(spatial_agg_clean, batch_file, compress = FALSE)
-            message("Saved period ", i, " as single batch")
-          }, error = function(e) {
-            stop("ERROR saving period ", i, " batch: ", e$message)
-          })
-          
-          # Store batch file info
-          period_info[[i]] <- list(
-            batched = TRUE,
-            batch_files = batch_file
-          )
-          
-          rm(spatial_agg_clean)
-          gc(verbose = FALSE)
-          
-        } else {
-          # Store in memory
-          period_info[[i]] <- list(
-            batched = FALSE,
-            data = spatial_agg_clean
-          )
-        }
-      }
-      
-    } else {
-      # Process in batches with optional disk saving for memory efficiency
-      num_layers <- min(floor(max_cells / (dims[1] * dims[2])), max_layers)
-      num_batches <- ceiling(dims[3] / num_layers)
+    # Calculate batch size (will be all layers if under max_cells limit)
+    num_layers <- min(floor(max_cells / (dims[1] * dims[2])), max_layers, dims[3])
+    num_batches <- ceiling(dims[3] / num_layers)
       
       # Initialize progress bar for multiple batches
       pb <- tryCatch({
@@ -1312,26 +1227,28 @@ trans_spatial_agg <- function(env_rast_list,
         
         if (is_points) {
           # Use point-optimized method
-          output_batch <- suppressMessages(trans_spatial_agg_points(
+          output_batch <- trans_spatial_agg_points(
             raster_subset = raster_batch,
             trans_fun = trans_fun,
             checked_trans_args = checked_trans_args,
             points_buffered = polygons_buffered,
             agg_weights = NULL,
             spatial_agg_args = spatial_agg_args,
-            poly_id_col = poly_id_col
-          ))
+            poly_id_col = poly_id_col,
+            verbose = verbose
+          )
         } else {
           # Use standard polygon method
-          output_batch <- suppressMessages(trans_spatial_agg_polygons(
+          output_batch <- trans_spatial_agg_polygons(
             raster_subset = raster_batch,
             trans_fun = trans_fun,
             checked_trans_args = checked_trans_args,
             polygons = polygons,
             agg_weights = agg_weights,
             spatial_agg_args = spatial_agg_args,
-            poly_id_col = poly_id_col
-          ))
+            poly_id_col = poly_id_col,
+            verbose = verbose
+          )
         }
         
         if (!is.null(pb)) {
@@ -1371,7 +1288,6 @@ trans_spatial_agg <- function(env_rast_list,
           batches_in_memory = period_batches
         )
       }
-    }
     
     period_end <- Sys.time()
   }

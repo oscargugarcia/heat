@@ -204,7 +204,8 @@ test_transformation <- function(trans_type, trans_args, baseline_dir,
       boundary_dates = boundary_dates,
       out_format = "long",
       run_control_checks = FALSE,
-      save_console_output = FALSE
+      save_console_output = FALSE,
+      verbose = 0
     )
   )
   
