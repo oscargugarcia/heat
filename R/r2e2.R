@@ -495,6 +495,12 @@ r2e2 <- function(env_rast,
   date_cols <- get_date_cols(spatial_agg)
   poly_ids_missing_vals <- get_missing_vals(spatial_agg, date_cols, verbose = verbose)
   
+  # Detect input temporal resolution
+  in_temp_res <- get_temp_res(date_cols)
+  if (verbose >= 2) {
+    message("Detected input temporal resolution: ", in_temp_res)
+  }
+  
   # Add metadata columns
   spatial_agg <- add_metadata_cols(spatial_agg, trans_type, metadata, trans_args)
   
@@ -511,10 +517,11 @@ r2e2 <- function(env_rast,
     }
     
     # Save as parquet (no geometry in output)
-    write_parquet(spatial_agg, file.path(save_path, "aggregation_output_daily_wide.parquet"), 
+    filename_spatial_agg_wide <- paste0(in_temp_res, "_wide.parquet")
+    write_parquet(spatial_agg, file.path(save_path, filename_spatial_agg_wide), 
                   compression = compression)
     if (verbose >= 1) {
-      message("Daily aggregation output in wide format saved to: aggregation_output_daily_wide.parquet")
+      message(in_temp_res, " aggregation output in wide format saved to: ", filename_spatial_agg_wide)
     }
   }
   
@@ -571,11 +578,11 @@ r2e2 <- function(env_rast,
   
   if (save_wide && save_path_provided) {
     # Save as parquet (no geometry in output)
-    filename_temp_agg_wide <- paste0("aggregation_output_", out_temp_res, "_wide.parquet")
+    filename_temp_agg_wide <- paste0(out_temp_res, "_wide.parquet")
     write_parquet(temp_agg_wide, file.path(save_path, filename_temp_agg_wide), 
                   compression = compression)
     if (verbose >= 1) {
-      message("Temporally aggregated output in wide format saved to: aggregation_output_", 
+      message("Temporally aggregated output in wide format saved to: ", 
               out_temp_res, "_wide.parquet")
     }
   }
@@ -601,11 +608,11 @@ r2e2 <- function(env_rast,
     
     if (save_path_provided) {
       # Save as parquet (no geometry in output)
-      filename_temp_agg_long <- paste0("aggregation_output_", out_temp_res, "_long.parquet")
+      filename_temp_agg_long <- paste0(out_temp_res, "_long.parquet")
       write_parquet(temp_agg_long, file.path(save_path, filename_temp_agg_long), 
                     compression = compression)
       if (verbose >= 1) {
-        message("Temporally aggregated output in long format saved to: aggregation_output_", 
+        message("Temporally aggregated output in long format saved to: ", 
                 out_temp_res, "_long.parquet")
       }
     }
@@ -623,11 +630,11 @@ r2e2 <- function(env_rast,
       
       if (save_path_provided) {
         # Save as parquet (no geometry in output)
-        filename_spatial_agg_long <- "aggregation_output_daily_long.parquet"
+        filename_spatial_agg_long <- paste0(in_temp_res, "_long.parquet")
         write_parquet(spatial_agg_long, file.path(save_path, filename_spatial_agg_long), 
                       compression = compression)
         if (verbose >= 1) {
-          message("Daily aggregation output in long format saved to: aggregation_output_daily_long.parquet")
+          message(in_temp_res, " aggregation output in long format saved to: ", filename_spatial_agg_long)
         }
       }
     }
@@ -647,13 +654,28 @@ r2e2 <- function(env_rast,
   }
   
   # Collect the relevant data frames based on out_format
-  results <- list(
-    spatial_agg = if (save_wide) spatial_agg else NULL,
-    spatial_agg_long = if (save_long && out_temp_res != "daily") spatial_agg_long else NULL,
-    temp_agg_wide = if (save_wide && out_temp_res != "daily") temp_agg_wide else NULL,
-    temp_agg_long = if (save_long) temp_agg_long else NULL,
+  # Create dynamic names based on temporal resolution
+  in_temp_res_wide_name <- paste0(in_temp_res, "_wide")
+  in_temp_res_long_name <- paste0(in_temp_res, "_long")
+  out_temp_res_wide_name <- paste0(out_temp_res, "_wide")
+  out_temp_res_long_name <- paste0(out_temp_res, "_long")
+  
+  exposures <- list(
     area_weights = area_weights
   )
+  
+  # Add input temporal resolution outputs with dynamic names
+  if (save_wide) exposures[[in_temp_res_wide_name]] <- spatial_agg
+  if (save_long && out_temp_res != in_temp_res) exposures[[in_temp_res_long_name]] <- spatial_agg_long
+  
+  # Add output temporal resolution outputs with dynamic names (if different from input)
+  if (out_temp_res != in_temp_res) {
+    if (save_wide) exposures[[out_temp_res_wide_name]] <- temp_agg_wide
+    if (save_long) exposures[[out_temp_res_long_name]] <- temp_agg_long
+  } else {
+    # For same resolution, temp_agg outputs are the same as spatial_agg
+    if (save_long) exposures[[out_temp_res_long_name]] <- temp_agg_long
+  }
   
   # Clean up objects not included in results to save memory
   if (!save_wide) {
@@ -679,7 +701,7 @@ r2e2 <- function(env_rast,
     if (verbose >= 2) {
       message("Validation skipped. If validation is desired, set validation = TRUE.\n")
     }
-    return(results)
+    return(exposures)
   } else {
     if (verbose >= 1) {
       message("5. Validation")
@@ -696,7 +718,7 @@ r2e2 <- function(env_rast,
       }
       
       validate_r2e2(
-        results = results,
+        results = exposures,
         geometry = validation_geometry,
         validation_var = validation_var,
         validation_var_name = validation_var_name,
@@ -712,8 +734,8 @@ r2e2 <- function(env_rast,
       )
     }, error = function(e) {
       warning("Validation failed: ", e$message, "\n",
-              "Results have been returned successfully. ",
-              "You can run validation separately: validate_r2e2(results = my_results, geometry = my_geometries, ...)")
+              "Exposures have been returned successfully. ",
+              "You can run validation separately: validate_r2e2(results = my_exposures, geometry = my_geometries, ...)")
     })
   }
   
@@ -725,7 +747,7 @@ r2e2 <- function(env_rast,
     sink(type="message")
   }
   
-  # Return the results as a list
-  return(results)
+  # Return the exposures as a list
+  return(exposures)
 
 }

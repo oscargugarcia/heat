@@ -1,2 +1,9 @@
 ^heat\.Rproj$
 ^\.Rproj\.user$
+^dev$
+^utils$
+^update_baselines\.R$
+^Rplots\.pdf$
+^\.bak$
+^\.bak[0-9]$
+^plots$

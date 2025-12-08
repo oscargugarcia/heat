@@ -193,7 +193,7 @@ test_transformation <- function(trans_type, trans_args, baseline_dir,
   }
   
   # Suppress messages and output from r2e2() during tests
-  results <- suppressMessages(
+  exposures <- suppressMessages(
     r2e2(
       env_rast = env_rast_path,
       polygons = polygons,
@@ -211,9 +211,10 @@ test_transformation <- function(trans_type, trans_args, baseline_dir,
     )
   )
   
-  # Extract results
-  actual_daily <- results$spatial_agg_long
-  actual_monthly <- results$temp_agg_long
+  # Extract results using dynamic naming
+  # Input resolution is daily, output is monthly
+  actual_daily <- exposures$daily_long
+  actual_monthly <- exposures$monthly_long
   
   # Test daily output
   test_that(sprintf("%s transformation produces correct daily output", trans_type), {
