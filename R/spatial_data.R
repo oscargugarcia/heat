@@ -522,6 +522,16 @@ buffer_extent <- function(raster, spatial_data, buffer_factor = 1) {
 #'   # Assuming 'my_raster' is a multi-layer raster and you wish to filter
 #'   # it for dates between January 1, 2018, and December 31, 2018:
 #'   filtered_raster <- filter_env_rast(my_raster, start_date = "2018-01-01", end_date = "2018-12-31")
+#' Filter Environmental Raster by Date Range
+#'
+#' @description
+#'   This function filters a raster to only include layers within a specified date range.
+#'   It supports multiple temporal resolutions: yearly (YYYY), monthly (YYYY-MM), 
+#'   daily (YYYY-MM-DD), and hourly (YYYY-MM-DD HH:MM).
+#'
+#' @examples
+#'   # Example: Filter a raster to a specific date range
+#'   filtered_raster <- filter_env_rast(my_raster, start_date = "2018-01-01", end_date = "2018-12-31")
 filter_env_rast <- function(env_rast, start_date, end_date, verbose = 1) {
   # Check if raster layer names exist
   layer_names <- names(env_rast)
@@ -529,24 +539,59 @@ filter_env_rast <- function(env_rast, start_date, end_date, verbose = 1) {
     stop("Error: Raster layers have no names. Ensure layers are named with valid date strings (e.g., 'YYYY-MM-DD').")
   }
   
-  # Try converting layer names to Date format and handle errors
-  raster_dates <- tryCatch(
-    as.Date(layer_names),
-    error = function(e) {
-      stop("Error: Raster layer names could not be converted to valid dates. ",
-           "Ensure they are in a recognizable date format such as 'YYYY-MM-DD'.")
+  # Determine temporal resolution
+  temp_res <- get_temp_res(layer_names)
+  
+  # Convert layer names to Date format based on resolution
+  # For start dates, always use first day of period
+  # For end dates, use last day of period
+  raster_dates_start <- tryCatch({
+    if (temp_res == "yearly") {
+      # Convert YYYY to YYYY-01-01
+      as.Date(paste0(layer_names, "-01-01"))
+    } else if (temp_res == "monthly") {
+      # Convert YYYY-MM to YYYY-MM-01
+      as.Date(paste0(layer_names, "-01"))
+    } else {
+      # Daily or hourly - extract date part
+      as.Date(substr(layer_names, 1, 10))
     }
-  )
+  }, error = function(e) {
+    stop("Error: Raster layer names could not be converted to valid dates. ",
+         "Ensure they are in a recognizable date format such as 'YYYY', 'YYYY-MM', or 'YYYY-MM-DD'.")
+  })
+  
+  # For end dates, calculate last day of period
+  raster_dates_end <- tryCatch({
+    if (temp_res == "yearly") {
+      # Convert YYYY to YYYY-12-31
+      as.Date(paste0(layer_names, "-12-31"))
+    } else if (temp_res == "monthly") {
+      # Convert YYYY-MM to last day of month
+      start_dates <- as.Date(paste0(layer_names, "-01"))
+      # Get last day of month by going to next month and subtracting 1 day
+      seq(start_dates[1], by = "month", length.out = 2)[2] - 1
+      # For multiple months, calculate each
+      sapply(start_dates, function(d) {
+        seq(d, by = "month", length.out = 2)[2] - 1
+      })
+    } else {
+      # Daily or hourly - same as start
+      as.Date(substr(layer_names, 1, 10))
+    }
+  }, error = function(e) {
+    stop("Error: Could not calculate end dates for raster periods.")
+  })
   
   # Ensure that at least some raster layer names were successfully converted
-  if (all(is.na(raster_dates))) {
+  if (all(is.na(raster_dates_start))) {
     stop("Error: All raster layer names are NA after attempting date conversion. ",
          "Please check the naming format.")
   }
   
-  # Get the overall raster date range
-  raster_start <- min(raster_dates, na.rm = TRUE)
-  raster_end <- max(raster_dates, na.rm = TRUE)
+  # Get the overall raster date range (use start of first period and end of last period)
+  raster_start <- min(raster_dates_start, na.rm = TRUE)
+  raster_end <- max(raster_dates_end, na.rm = TRUE)
   
   # Convert input dates to Date format
   start_date <- as.Date(start_date)
@@ -571,7 +616,8 @@ filter_env_rast <- function(env_rast, start_date, end_date, verbose = 1) {
   
   
   # Filter the raster based on the specified date range
-  date_mask <- raster_dates >= start_date & raster_dates <= end_date
+  # A layer is included if its period overlaps with the requested range
+  date_mask <- raster_dates_start <= end_date & raster_dates_end >= start_date
   filtered_raster <- env_rast[[date_mask]]
   if (verbose >= 2) {
     message("Filtered Raster date range: ", start_date, " to ", end_date, "\n")

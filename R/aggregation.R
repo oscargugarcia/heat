@@ -160,7 +160,27 @@ assign_weighting_periods <- function(raster, period_defs, verbose = 1) {
   period_defs$end_date   <- as.Date(period_defs$end_date)
   
   filtered_raster <- filter_env_rast(raster, period_defs$start_date[1], period_defs$end_date[nrow(period_defs)], verbose = verbose)
-  raster_dates <- names(filtered_raster)
+  raster_layer_names <- names(filtered_raster)
+  
+  # Determine temporal resolution and convert layer names to dates
+  temp_res <- get_temp_res(raster_layer_names)
+  
+  raster_dates_start <- if (temp_res == "yearly") {
+    as.Date(paste0(raster_layer_names, "-01-01"))
+  } else if (temp_res == "monthly") {
+    as.Date(paste0(raster_layer_names, "-01"))
+  } else {
+    as.Date(substr(raster_layer_names, 1, 10))
+  }
+  
+  raster_dates_end <- if (temp_res == "yearly") {
+    as.Date(paste0(raster_layer_names, "-12-31"))
+  } else if (temp_res == "monthly") {
+    start_dates <- as.Date(paste0(raster_layer_names, "-01"))
+    sapply(start_dates, function(d) seq(d, by = "month", length.out = 2)[2] - 1)
+  } else {
+    as.Date(substr(raster_layer_names, 1, 10))
+  }
   
   if (verbose >= 2) {
     message("Assigning raster layers to their respective weighting periods...")
@@ -174,8 +194,8 @@ assign_weighting_periods <- function(raster, period_defs, verbose = 1) {
     end_date   <- period_defs$end_date[i]
     period_name <- paste0("period_", i)
     
-    # Identify raster layers whose dates fall within the current period.
-    selected_layers <- which(raster_dates >= start_date & raster_dates <= end_date)
+    # Identify raster layers whose periods overlap with the current period
+    selected_layers <- which(raster_dates_start <= end_date & raster_dates_end >= start_date)
     
     if (length(selected_layers) > 0) {
       # raster_subset <- raster[[selected_layers]]

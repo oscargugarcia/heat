@@ -145,9 +145,9 @@ sinusoidal_interpol <- function(tmin, tmax, hour = 1:24) {
 #'   It handles large raster datasets by splitting them into manageable batches to avoid 
 #'   processing limitations.
 #'
-#' @param paths A list containing paths to the input temperature raster files, including 
-#'               paths for daily minimum and maximum temperatures.
-#' @param polygons An object that defines geographical boundaries, used for cropping the rasters.
+#' @param min_rast_path Path to the directory containing minimum temperature raster files.
+#' @param max_rast_path Path to the directory containing maximum temperature raster files.
+#' @param geometry An sf object that defines geographical boundaries, used for cropping the rasters.
 #' @param boundary_dates A vector of dates defining the range for which interpolation 
 #'                       is to be performed.
 #' @param interpol_fun A function used for interpolating the temperatures. This function 
@@ -155,6 +155,10 @@ sinusoidal_interpol <- function(tmin, tmax, hour = 1:24) {
 #' @param interpol_args A list of additional arguments to be passed to the interpolation function.
 #' @param daily_agg_fun A character string specifying the aggregation function to be used 
 #'                       when converting back to daily values. Defaults to "none".
+#' @param save_path Optional character string specifying the output directory for storing 
+#'                  the interpolated raster. If NULL (default), the raster is only returned 
+#'                  without saving to disk. When provided, the output raster is saved as a 
+#'                  GeoTIFF split up into batches.
 #' @param max_output_layers An integer defining the maximum number of output layers allowed; 
 #'                          default is set to 30,000 to prevent exceeding raster writing limits.
 #'
@@ -164,9 +168,9 @@ sinusoidal_interpol <- function(tmin, tmax, hour = 1:24) {
 #' @examples
 #'   # Example using the interpol_min_max function:
 #'   result <- interpol_min_max(
-#'     paths = list(path_tmin_rast = "path/to/tmin",
-#'                  path_tmax_rast = "path/to/tmax"),
-#'     polygons = my_polygons,
+#'     min_rast_path = "path/to/tmin",
+#'     max_rast_path = "path/to/tmax",
+#'     geometry = my_regions,
 #'     boundary_dates = as.Date(c("2022-01-01", "2022-01-07")),
 #'     interpol_fun = sinusoidal_interpol,
 #'     interpol_args = list(),
@@ -174,7 +178,14 @@ sinusoidal_interpol <- function(tmin, tmax, hour = 1:24) {
 #'   )
 #' 
 #' @export
-interpol_min_max <- function(paths, polygons, boundary_dates, interpol_fun,  interpol_args = NULL, daily_agg_fun = "none", max_cells = 3e7, max_output_layers = 30000, save_interpol_rast = FALSE) {
+interpol_min_max <- function(min_rast_path, max_rast_path, geometry, boundary_dates, interpol_fun, interpol_args = NULL, daily_agg_fun = "none", save_path = NULL, max_cells = 3e7, max_output_layers = 30000) {
+  
+  # Check if save_path is provided and create directory if needed
+  save_path_provided <- !is.null(save_path) && save_path != ""
+  
+  if (save_path_provided && !dir.exists(save_path)) {
+    dir.create(save_path, recursive = TRUE)
+  }
   
   # ---- Step 1: Load tmin and tmax rasters -----
 
@@ -182,23 +193,23 @@ interpol_min_max <- function(paths, polygons, boundary_dates, interpol_fun,  int
   boundary_date_range <- c(year(min(boundary_dates)), year(max(boundary_dates)))
   
   # Read the environmental rasters from the specified path, filtering by date range
-  files_tmin <- filter_read_rast(paths$path_tmin_rast, year_range =  boundary_date_range)
-  files_tmax <- filter_read_rast(paths$path_tmax_rast, year_range = boundary_date_range)
+  files_tmin <- filter_read_rast(min_rast_path, year_range = boundary_date_range)
+  files_tmax <- filter_read_rast(max_rast_path, year_range = boundary_date_range)
   
   # Read the environmental rasters into a RasterStack
-  tmin_raster <- rast(file.path(paths$path_tmin_rast, files_tmin))
-  tmax_raster <- rast(file.path(paths$path_tmax_rast, files_tmax))
+  tmin_raster <- rast(file.path(min_rast_path, files_tmin))
+  tmax_raster <- rast(file.path(max_rast_path, files_tmax))
   
   # Crop raster to spatial data bounding box for efficiency
   # For point geometries, buffer by one cell to ensure cells containing points are included
   # For polygon geometries, use extent directly
-  geom_types <- sf::st_geometry_type(polygons)
+  geom_types <- sf::st_geometry_type(geometry)
   is_points <- all(grepl("POINT", geom_types))
   
   if (is_points) {
-    crop_extent <- buffer_extent(tmin_raster, polygons, buffer_factor = 1)
+    crop_extent <- buffer_extent(tmin_raster, geometry, buffer_factor = 1)
   } else {
-    crop_extent <- terra::ext(polygons)
+    crop_extent <- terra::ext(geometry)
   }
   
   terra::window(tmin_raster) <- crop_extent
@@ -290,15 +301,15 @@ interpol_min_max <- function(paths, polygons, boundary_dates, interpol_fun,  int
     
     # ---- Step 3: Apply the interpolation function to the rasters -----
     
-    if (save_interpol_rast) {
+    if (save_path_provided) {
       # create an 'interpolated_rasters' folder in the output directory if it does not exist
-      interpolated_rasters_path <-  file.path(paths$path_out_folder, "interpolated_rasters")
+      interpolated_rasters_path <- file.path(save_path, "interpolated_rasters")
       if (!dir.exists(interpolated_rasters_path)) {
         dir.create(interpolated_rasters_path, recursive = TRUE)
       }
       
       interpolated_rast <- do.call(terra::xapp,
-                               c(list(x = tmin_batch, y = tmax_batch, fun = interpol_fun, filename = file.path(interpolated_rasters_path, paste0("batch_", j, ".tif")), overwrite = TRUE), #, wopt = list(names = layer_names)
+                               c(list(x = tmin_batch, y = tmax_batch, fun = interpol_fun, filename = file.path(interpolated_rasters_path, paste0("batch_", j, ".tif")), overwrite = TRUE),
                                  interpol_args))
     } else {
       # If not saving, just apply the function without saving the file
@@ -317,7 +328,7 @@ interpol_min_max <- function(paths, polygons, boundary_dates, interpol_fun,  int
     
     # ---- Step 4: Aggregate the sub-daily raster to daily resolution (if daily_agg_fun is not 'none') -----
     
-    output_batch <- aggregation_to_daily(interpolated_rast, fun = daily_agg_fun)  # or "sum" based on needs
+    output_batch <- agg_to_daily(interpolated_rast, fun = daily_agg_fun)  # or "sum" based on needs
     
     # stop the timer
     timer_end <- Sys.time()
