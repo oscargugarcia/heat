@@ -17,8 +17,10 @@ NULL
 #'   - A character vector containing the names of the columns that are recognized as date columns.
 #'
 #' @examples
+#' \dontrun{
 #'   # Suppose dt is a data.table with columns "geom_id", "trans_var", "2017-01-01", "2017-01-02", ...
 #'   date_cols <- get_date_cols(dt)
+#' }
 get_date_cols <- function(dt) {
   # Get all column names.
   col_names <- names(dt)
@@ -52,6 +54,7 @@ get_date_cols <- function(dt) {
 #'   - A character string representing the temporal resolution: "yearly", "monthly", or "daily".
 #'
 #' @examples
+#' \dontrun{
 #'   # Given a vector of date column names:
 #'   date_cols <- c("2017", "2018", "2019")
 #'   res <- get_temp_res(date_cols)  # returns "yearly"
@@ -59,6 +62,7 @@ get_date_cols <- function(dt) {
 #'   # For monthly resolution:
 #'   date_cols <- c("2017-01", "2017-02", "2017-03")
 #'   res <- get_temp_res(date_cols)  # returns "monthly"
+#' }
 get_temp_res <- function(date_cols) {
   # Check that all date column names have the same number of characters.
   char_lengths <- sapply(date_cols, nchar)
@@ -204,9 +208,11 @@ add_time_cols <- function(dt, date_col = "date", temp_res = "daily",
 #'     containing the melted data, and optionally additional time columns.
 #'
 #' @examples
+#' \dontrun{
 #'   # Suppose wide_dt is a data.table with columns "geom_id", "trans_type", "trans_var",
 #'   # and date columns like "2017-01-01", "2017-01-02", etc.
 #'   long_dt <- reshape_to_long(wide_dt)
+#' }
 #' 
 #' @export
 reshape_to_long <- function(wide_dt, 

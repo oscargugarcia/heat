@@ -70,7 +70,7 @@ check_raster <- function(raster, raster_name = "raster", lon_tolerance = 181, ve
   }
   
   if (verbose >= 2) {
-    message("✓ ", raster_name, " longitude format validated: -180 to 180 degrees")
+    message(raster_name, " longitude format validated: -180 to 180 degrees")
   }
   
   return(raster)
@@ -133,7 +133,7 @@ check_raster_layers <- function(raster, raster_name = "raster", verbose = 1) {
   })
   
   if (verbose >= 2) {
-    message("✓ ", raster_name, " validated successfully: ", nlyr(raster), " layers")
+    message(raster_name, " validated successfully: ", nlyr(raster), " layers")
   }
   return(raster)
 }
@@ -509,19 +509,8 @@ buffer_extent <- function(raster, spatial_data, buffer_factor = 1) {
 #'   specified date range falls within the range of available raster dates and returns the filtered
 #'   raster containing only the layers that match the specified dates.
 #'
-#' @param:
-#'   - env_rast: A multi-layer raster object (e.g., from the 'raster' or 'terra' package) with layer names
-#'     corresponding to valid date strings (e.g., 2017-01-01).
-#'   - start_date: A string or Date object representing the start date of the desired date range.
-#'   - end_date: A string or Date object representing the end date of the desired date range.
-#'
 #' @return:
 #'   - A filtered raster object containing only the layers corresponding to the specified date range.
-#'
-#' @examples
-#'   # Assuming 'my_raster' is a multi-layer raster and you wish to filter
-#'   # it for dates between January 1, 2018, and December 31, 2018:
-#'   filtered_raster <- filter_env_rast(my_raster, start_date = "2018-01-01", end_date = "2018-12-31")
 #' Filter Environmental Raster by Date Range
 #'
 #' @description
@@ -529,9 +518,16 @@ buffer_extent <- function(raster, spatial_data, buffer_factor = 1) {
 #'   It supports multiple temporal resolutions: yearly (YYYY), monthly (YYYY-MM), 
 #'   daily (YYYY-MM-DD), and hourly (YYYY-MM-DD HH:MM).
 #'
+#' @param env_rast A SpatRaster object with named layers representing dates
+#' @param start_date Character string specifying the start date
+#' @param end_date Character string specifying the end date
+#' @param verbose Integer controlling message verbosity (default: 1)
+#'
+#' @return A filtered SpatRaster object containing only layers within the date range
+#'
 #' @examples
 #'   # Example: Filter a raster to a specific date range
-#'   filtered_raster <- filter_env_rast(my_raster, start_date = "2018-01-01", end_date = "2018-12-31")
+#'   # filtered_raster <- filter_env_rast(my_raster, start_date = "2018-01-01", end_date = "2018-12-31")
 filter_env_rast <- function(env_rast, start_date, end_date, verbose = 1) {
   # Check if raster layer names exist
   layer_names <- names(env_rast)

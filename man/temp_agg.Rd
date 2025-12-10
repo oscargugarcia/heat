@@ -42,10 +42,12 @@ If \code{keep_metadata = FALSE}, only the identifier columns (defined as "geom_i
 are retained.
 }
 \examples{
+\dontrun{
   agg_args <- list(
     out_temp_res = "monthly",
     temp_agg_fun = mean
   )
   aggregated_DT <- temp_agg(spatial_output, agg_args)
+}
 
 }

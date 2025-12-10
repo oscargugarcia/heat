@@ -4,10 +4,10 @@
 \alias{check_spatial_file}
 \title{Check and Clean an sf Spatial Object}
 \usage{
-check_spatial_file(polygons, source = NULL, verbose = 1)
+check_spatial_file(geometry, source = NULL, verbose = 1)
 }
 \arguments{
-\item{polygons}{An sf object to validate and clean.}
+\item{geometry}{An sf object to validate and clean.}
 
 \item{source}{Optional character string describing the source (e.g., file path) for messaging.}
 }
@@ -24,9 +24,9 @@ directly.
 \examples{
 \dontrun{
   # Validate and clean an sf object
-  cleaned_polygons <- check_spatial_file(my_polygons)
+  cleaned_geometry <- check_spatial_file(my_geometry)
   
   # With source information for better error messages
-  cleaned_polygons <- check_spatial_file(my_polygons, source = "my_data.gpkg")
+  cleaned_geometry <- check_spatial_file(my_geometry, source = "my_data.gpkg")
 }
 }

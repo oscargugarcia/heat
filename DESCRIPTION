@@ -2,8 +2,12 @@ Package: heat
 Title: Compute environmental exposures from raster data
 Version: 0.0.0.9000
 Authors@R: 
-    person("Jonas", "Wallstein", email = "jwallstein@stanford.edu", role = c("aut", "cre"), person("Brandon", "de la Cuesta", email = "brandon.delacuesta@stanford.edu", role = c("aut", "cre"), person("Marshall", "Burke", email =  "mburke@stanford.edu", role = c("aut"))
-Description: The 'heat' package (Harmonized Envrionmental Exposure Aggregation Tools) aggregates environmental raster data to environmental exposures for any 'sf' dataframe of administrative boundaries or point locations. 'heat' supports nonlinear transformations (polynomials, splines, bins and custom functions) and aggregating the exposures to the desired temporal resolution. The package can process large datasets with decades of high-resolution raster data efficiently by automatically splitting the data into batches.
+    c(
+    person("Jonas", "Wallstein", email = "jwallstein@stanford.edu", role = c("aut", "cre")),
+    person("Brandon", "de la Cuesta", email = "brandon.delacuesta@stanford.edu", role = c("aut")),
+    person("Marshall", "Burke", email = "mburke@stanford.edu", role = c("aut"))
+    )
+Description: The R package `heat` - Harmonized Envrionmental Exposure Aggregation Tools - provides a comprehensive set of tools to compute environmental exposures for administrative boundaries or point locations. Its main aggregation function, `r2e2`, supports various nonlinear transformations (e.g., polynomial, splines, binning), temporal aggregations (e.g., daily, monthly, yearly) and scales efficiently to large raster datasets spanning multiple decades.
 License: GPL (>= 3)
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)

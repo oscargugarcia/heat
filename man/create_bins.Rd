@@ -27,6 +27,7 @@ matrix has dimensions (n_time x n_bins), where each row represents a time step a
 one-hot encoding indicating which bin that time step's value falls into.
 }
 \examples{
+\dontrun{
 # Example 1: Basic usage with a cell value vector across 3 time steps and inner breaks at 10 and 20.
 # The full breaks become c(-Inf, 10, 20, Inf), resulting in 3 bins.
 # For a cell with values c(2, 15, 30), the output will be a 3x3 matrix.
@@ -38,4 +39,5 @@ create_bins(c(2, 15, 30), breaks = c(10, 20))
 
 # Example 2: Passing additional arguments to findInterval.
 create_bins(c(2, 15, 30), breaks = c(10, 20), rightmost.closed = TRUE)
+}
 }

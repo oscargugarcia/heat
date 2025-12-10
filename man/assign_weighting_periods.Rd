@@ -29,7 +29,9 @@ should be a data.frame with 'start_date' and 'end_date' columns (in Date format)
 returns a named list of raster stacks, where each element corresponds to a period (e.g., "period_1").
 }
 \examples{
+\dontrun{
   # Assuming 'cropped_raster' is a cropped SpatRaster with time metadata and
   # 'period_defs' is a data.frame with start_date and end_date columns:
   periods_list <- assign_weighting_periods(cropped_raster, period_defs)
+}
 }

@@ -28,9 +28,11 @@ provided transformation type. It supports the following transformation types:
 - "custom": returns NULL and prompts the user to assign a custom transformation function.
 }
 \examples{
+\dontrun{
   # Select natural spline transformation
   ns_fun <- select_trans_fun("natural_spline")
 
   # Select B-spline transformation
   bs_fun <- select_trans_fun("b_spline")
+}
 }

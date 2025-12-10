@@ -28,7 +28,9 @@ date, and the end date is one day before the next boundary date, except for the 
 ends exactly at the last boundary date.
 }
 \examples{
+\dontrun{
   boundary_dates <- as.Date(c("2020-01-01", "2020-06-01", "2020-12-31"))
   periods <- create_periods(boundary_dates)
   print(periods)
+}
 }

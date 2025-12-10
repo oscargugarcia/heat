@@ -5,22 +5,24 @@
 \title{Interpolate Daily Minimum and Maximum Temperatures to Obtain Hourly Values}
 \usage{
 interpol_min_max(
-  paths,
-  polygons,
+  min_rast_path,
+  max_rast_path,
+  geometry,
   boundary_dates,
   interpol_fun,
   interpol_args = NULL,
   daily_agg_fun = "none",
+  save_path = NULL,
   max_cells = 3e+07,
-  max_output_layers = 30000,
-  save_interpol_rast = FALSE
+  max_output_layers = 30000
 )
 }
 \arguments{
-\item{paths}{A list containing paths to the input temperature raster files, including
-paths for daily minimum and maximum temperatures.}
+\item{min_rast_path}{Path to the directory containing minimum temperature raster files.}
 
-\item{polygons}{An object that defines geographical boundaries, used for cropping the rasters.}
+\item{max_rast_path}{Path to the directory containing maximum temperature raster files.}
+
+\item{geometry}{An sf object that defines geographical boundaries, used for cropping the rasters.}
 
 \item{boundary_dates}{A vector of dates defining the range for which interpolation
 is to be performed.}
@@ -32,6 +34,11 @@ should accept minimum and maximum temperatures as inputs.}
 
 \item{daily_agg_fun}{A character string specifying the aggregation function to be used
 when converting back to daily values. Defaults to "none".}
+
+\item{save_path}{Optional character string specifying the output directory for storing
+the interpolated raster. If NULL (default), the raster is only returned
+without saving to disk. When provided, the output raster is saved as a
+GeoTIFF split up into batches.}
 
 \item{max_output_layers}{An integer defining the maximum number of output layers allowed;
 default is set to 30,000 to prevent exceeding raster writing limits.}
@@ -48,15 +55,17 @@ It handles large raster datasets by splitting them into manageable batches to av
 processing limitations.
 }
 \examples{
+\dontrun{
   # Example using the interpol_min_max function:
   result <- interpol_min_max(
-    paths = list(path_tmin_rast = "path/to/tmin",
-                 path_tmax_rast = "path/to/tmax"),
-    polygons = my_polygons,
+    min_rast_path = "path/to/tmin",
+    max_rast_path = "path/to/tmax",
+    geometry = my_regions,
     boundary_dates = as.Date(c("2022-01-01", "2022-01-07")),
     interpol_fun = sinusoidal_interpol,
     interpol_args = list(),
     daily_agg_fun = "mean"
   )
+}
 
 }

@@ -1,6 +1,6 @@
 # `heat` : Harmonized Environmental Exposure Aggregation Tools
 
-The `heat` R package provides a comprehensive set of tools to compute environmental exposures for administrative boundaries or point locations. Its main aggregation function, `r2e2`, supports various nonlinear transformations (e.g., polynomial, splines, binning), temporal aggregations (e.g., daily, monthly, yearly) and scales efficiently to large raster datasets spanning multiple decades.
+The `heat` R package provides a comprehensive set of tools to compute environmental exposures for administrative boundaries or point locations. Its main aggregation function, `r2e2`, supports various nonlinear transformations (e.g., polynomial, splines, binning), temporal aggregations (e.g., daily, monthly, yearly), and scales efficiently to large raster datasets spanning multiple decades.
 
 ## Installation
 
@@ -29,7 +29,7 @@ library(heat)
 library(sf)
 library(terra)
 
-# Load dataframe containing a sf geometry (polygons or points)
+# Load dataframe containing an sf geometry (polygons or points)
 regions <- st_read("regions.shp")
 
 # Load environmental raster
@@ -63,39 +63,40 @@ head(exposures$monthly_long)
 # Population-weighted temperature aggregation
 exposures <- r2e2(
   env_rast = "path/to/temperature/",           # A directory name works too
-  sec_weight_rast = "path/to/population/",     # ... same for secondary weights
-  geometry = regions,                          # Polygon geometries
+  sec_weight_rast = "path/to/population/",     # ... also for secondary weights
+  geometry = "path/to/regions.shp",            # ... and spatial geometries
   geom_id_col = "region_id",                   # Optional: keep only ID column
   boundary_dates = c("2000-01-01", 
                      "2020-12-31"),            # Optional: limit time range
   trans_type = "bin",                          # Bin transformation
   breaks = c(-10, 0, 10, 20, 30),              # Bin breaks
   out_temp_res = "daily",                      # Keep daily resolution
-  save_path = "path/to/output",                # Save outputs to disk
+  save_path = "path/to/output",                # Save outputs locally
   verbose = 2                                  # Show detailed messages
 )
 ```
 
-## Aggregation
+## `r2e2()`: Raster to Environmental Exposures
 
-The main function `r2e2` (`r`aster `to` `e`nvironmental `e`xposures) performs the aggregation of environmental raster data to exposures for spatial geometries. It follows these three steps:
+The `r2e2` function of the `heat` package aggregates environmental raster data to environmental exposures following these three steps:
 
 1. **Transformation**: Applies the specified nonlinear transformation to each raster cell's time series.
-2. **Spatial Aggregation**: Averages the transformed raster values over each geometry via `exactextractr`, optionally using secondary weights.
+2. **Spatial Aggregation**: Averages the transformed raster values over each geometry using `exactextractr`, optionally using secondary weights.
 3. **Temporal Aggregation**: Aggregates the spatially averaged values to the desired temporal resolution (e.g., monthly, yearly).
 
-For a great explanation of these operations and why their order matters, please refer to [Lidell et al. (2025)](https://www.sciencedirect.com/science/article/pii/S1364815224002639). The `r2e2` part of the `heat` package closely aligns in purpose with their `stagg` package but aims to provide a faster, more robust approach. `heat` also extends the `stagg` features with these additional features:
+For a great explanation of these operations and why their order matters, please refer to [Lidell et al. (2025)](https://www.sciencedirect.com/science/article/pii/S1364815224002639). The `r2e2` part of the `heat` package closely aligns in purpose with their `stagg` package but aims to provide a faster, more robust approach. `heat` also extends the `stagg` functionality with these additional features:
 
--  Support for both polygon and point geometries
--  Support for raster time-intervals ranging from sub-hourly to yearly
--  Secondary weights can change over time (e.g., yearly population counts)
--  Built-in validation plots to verify quality of the results
--  Batch processing to enable fast processing across multiple decades on a regular laptop
--  Smart restart: Automatically resumes from last successful batch when re-running after interruption
--  Raster interpolations such as mean daily, or sinusoidal hourly, temperature from min and max
--  Multiple output formats (long/wide)
--  Custom transformation functions can be passed in addition to built-in types
--  Custom arguments can be passed to transformation functions and spatial aggregation via `exact_extract()`
+
+
+-  Batch processing: Enables fast processing across multiple decades on regular laptops and high-performance computing clusters
+-  Smart restart: Automatically resumes from last successful batch when re-running after interruption (see performance tips below)
+-  Support for temporal resolutions from sub-hourly to yearly in the input environmental raster 
+-  Built-in plots to validate the quality of the output and visualize the exposure distributions
+-  Integrated support for time-varying secondary weights (e.g., yearly population counts)
+-  Raster interpolations: Mean daily temperature, or sinusoidal hourly temperature, interpolated from daily min and max temperature
+-  Long and wide output formats
+-  User provided custom transformation functions on top of standard built-in transformations (Polynomial, Splines, Binning)
+-  Custom arguments can be passed to the transformation functions and the spatial aggregation via `exact_extract()` to customize the processing
 
 We are currently finishing up additional functions downstream of `r2e2` such as calculating unit specific lags. 
 
@@ -106,7 +107,7 @@ We are currently finishing up additional functions downstream of `r2e2` such as 
 | `"none"`           | No transformation        | -                | -                     |
 | `"polynomial"`     | Polynomial     | `stats::poly()`  | `degree = <integer>`  |
 | `"natural_spline"` | Natural cubic spline     | `splines::ns()`  | `knots = c(...)`      |
-| `"b_spline"`       | B-spline basis           | `splines::bs()`  | `knots = c(...)`      |
+| `"b_spline"`       | B-spline           | `splines::bs()`  | `knots = c(...)`      |
 | `"bin"`            | Binning   | `heat::create_bins()`           | `breaks = c(...)`     |
 
 
@@ -144,13 +145,13 @@ Used to weight spatial aggregation (e.g., population-weighted averages). Same fo
 
 #### Spatial Geometries
 
-A `sf` object (polygons or points) or path to spatial file (".gpkg", .shp", ".geojson", ".json", ".fgb", ".rds", ".parquet") meeting the following requirements:
+A `sf` object (polygons or points) or path to spatial file (`.gpkg`, `.shp`, `.geojson`, `.json`, `.fgb`, `.rds`, `.parquet`) meeting the following requirements:
 
 -   CRS: Any valid CRS is accepted
 -   ID Column: Ideally a unique identifier column (specified via `geom_id_col`). If no ID column is provided, the row index will be used and all columns retained.
 -   Geometry Type: POLYGON, MULTIPOLYGON, POINT, or MULTIPOINT
 
-Validation: Is executed automatically within `r2e2()`, but can be run separately:
+Validation is executed automatically within `r2e2()`, but can be run separately:
 ``` r
 # Validate and clean spatial geometries
 regions <- st_read("regions.gpkg")
@@ -191,7 +192,9 @@ exposures <- r2e2(
   trans_type = "polynomial",
   degree = 4,
   out_temp_res = "monthly",
-  validation = TRUE,                       # Generate diagnostic plots
+  validation = TRUE,                         # Generate validation plots
+  validation_var = "degree_1",               # Variable to visualize
+  validation_var_name = "Temperature (°C)",  # Variable name for plots
   verbose = 1
 )
 ```
@@ -203,11 +206,11 @@ Validation can also be run separately on existing results:
 ``` r
 # Validate after processing
 validate_r2e2(
-  results = exposures,                     # Output from r2e2()
+  results = exposures,                       # Output from r2e2()
   geometry = regions,
   geom_id_col = "region_id",
-  validation_var = "degree_1",             # Variable to visualize
-  validation_var_name = "Temperature (°C)" # Label for plots
+  validation_var = "degree_1",               # Variable to visualize
+  validation_var_name = "Temperature (°C)"   # Variable name for plots
 )
 ```
 
@@ -222,15 +225,15 @@ Validation produces plots showing:
 
 ## Interpolation
 
-For raster datasets with only daily minimum and maximum values (e.g., `tmin` and `tmax`), `heat` provides interpolation functions to estimate hourly or mean daily temperatures:
+For raster datasets with only daily minimum and maximum values (e.g., `tmin` and `tmax`), `heat` provides interpolation functions to estimate hourly or mean daily values:
 
-- **`mean_interpol()`**: Simple average of tmin and tmax for daily mean temperature
-- **`sinusoidal_interpol()`**: Sinusoidal curve fitting for hourly temperature estimates
+- **`mean_interpol()`**: Simple average of min and max for daily mean values
+- **`sinusoidal_interpol()`**: Sinusoidal curve fitting for hourly estimates
 
 ### Example: Interpolating to Hourly Temperature
 
 ``` r
-# Interpolate hourly temperature from tmin/tmax
+# Interpolate hourly temperature from tmin and tmax
 hourly_temp <- interpol_min_max(
   min_rast_path = "path/to/tmin/",
   max_rast_path = "path/to/tmax/",
@@ -243,7 +246,7 @@ exposures <- r2e2(
   env_rast = hourly_temp,
   geometry = regions,
   trans_type = "bin",
-  breaks = c(-10, 0, 10, 20, 30)
+  breaks = c(-10, 0, 10, 20, 30),
   out_temp_res = "daily"                 # Aggregate back to daily
 )
 ```
@@ -251,11 +254,10 @@ exposures <- r2e2(
 
 ## Performance Tips
 
--   Use `max_cells` to control memory usage (default: 30 million (3e7) cells). Lower values will decrease memory usage.
+-   Use `max_cells` to control memory usage. Default are 30 million (`3e7`) cells processed at once. Lower values will decrease memory usage.
 -   Set `verbose = 2` for detailed progress information and debugging.
--   Enable `save_batch_output` to save intermediate results for large datasets
 -   For points, the package automatically uses an optimized extraction method
--   Enable smart restart which automatically resumes from last successful batch when re-running after an interruption. This is enabled by default when a `save_path` is provided, `save_batch_output = TRUE` and `overwrite_batch_output = FALSE`.
+-   Enable smart restart, which automatically resumes from the last successful batch when re-running after an interruption. This is enabled by default when a `save_path` is provided, `save_batch_output = TRUE`, and `overwrite_batch_output = FALSE`.
 -   If the polygons are far apart, e.g. spanning multiple countries or continents, the soon to be released `r2e2_country()` function will accelerate processing by splitting the raster by country.
 
 

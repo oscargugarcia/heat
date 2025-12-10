@@ -43,8 +43,10 @@ merged sequentially into a long-format data.table using keyed joins.
 Optionally, time columns (year, month, day) are added based on the detected temporal resolution.
 }
 \examples{
+\dontrun{
   # Suppose wide_dt is a data.table with columns "geom_id", "trans_type", "trans_var",
   # and date columns like "2017-01-01", "2017-01-02", etc.
   long_dt <- reshape_to_long(wide_dt)
+}
 
 }

@@ -31,7 +31,9 @@ arguments meet the required conditions for processing. It validates that:
 - If the function is create_bins, it sorts the breaks
 }
 \examples{
+\dontrun{
   # Example for a polynomial transformation:
   updated_args <- check_trans(stats::poly, list(degree = 3), "polynomial")
   # updated_args now contains degree = 3 and raw = TRUE.
+}
 }

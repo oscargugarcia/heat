@@ -7,29 +7,34 @@
 filter_env_rast(env_rast, start_date, end_date, verbose = 1)
 }
 \arguments{
-\item{:}{\itemize{
-\item env_rast: A multi-layer raster object (e.g., from the 'raster' or 'terra' package) with layer names
-corresponding to valid date strings (e.g., 2017-01-01).
-\itemize{
-\item start_date: A string or Date object representing the start date of the desired date range.
-\item end_date: A string or Date object representing the end date of the desired date range.
-}
-}}
+\item{env_rast}{A SpatRaster object with named layers representing dates}
+
+\item{start_date}{Character string specifying the start date}
+
+\item{end_date}{Character string specifying the end date}
+
+\item{verbose}{Integer controlling message verbosity (default: 1)}
 }
 \value{
 :
 \itemize{
 \item A filtered raster object containing only the layers corresponding to the specified date range.
+Filter Environmental Raster by Date Range
 }
+
+A filtered SpatRaster object containing only layers within the date range
 }
 \description{
 This function filters a multi-layer raster based on a specified date range. The raster should have
 layer names corresponding to date strings in 'YYYY-MM-DD' format. The function checks whether the
 specified date range falls within the range of available raster dates and returns the filtered
 raster containing only the layers that match the specified dates.
+
+This function filters a raster to only include layers within a specified date range.
+It supports multiple temporal resolutions: yearly (YYYY), monthly (YYYY-MM),
+daily (YYYY-MM-DD), and hourly (YYYY-MM-DD HH:MM).
 }
 \examples{
-  # Assuming 'my_raster' is a multi-layer raster and you wish to filter
-  # it for dates between January 1, 2018, and December 31, 2018:
-  filtered_raster <- filter_env_rast(my_raster, start_date = "2018-01-01", end_date = "2018-12-31")
+  # Example: Filter a raster to a specific date range
+  # filtered_raster <- filter_env_rast(my_raster, start_date = "2018-01-01", end_date = "2018-12-31")
 }

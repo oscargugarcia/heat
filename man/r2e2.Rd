@@ -6,13 +6,14 @@
 \usage{
 r2e2(
   env_rast,
-  polygons,
+  geometry,
   geom_id_col = NULL,
   trans_type,
   degree = NULL,
   breaks = NULL,
   knots = NULL,
   trans_args = list(),
+  daily_agg_fun = "none",
   out_temp_res,
   temp_agg_fun = "mean",
   sec_weight_rast = NULL,
@@ -23,12 +24,12 @@ r2e2(
   max_cells = 3e+07,
   metadata = NULL,
   save_console_output = FALSE,
-  save_batch_output = TRUE,
+  save_batch_output = FALSE,
   overwrite_batch_output = FALSE,
   compression = "zstd",
   validation = TRUE,
   validation_var = "degree_1",
-  validation_var_name = "Temperature (C°)",
+  validation_var_name = "Temperature (C)",
   verbose = 1
 )
 }
@@ -37,12 +38,12 @@ r2e2(
 rasters, OR a SpatRaster object containing the environmental data.
 Layer names must be in date format (e.g., "YYYY-MM-DD").}
 
-\item{polygons}{Either a character string specifying the file path to a spatial polygon file
-(e.g., shapefile, geopackage), OR an sf/SpatVector object containing the
-polygons for spatial aggregation.}
+\item{geometry}{Either a character string specifying the file path to a spatial geometry file
+(e.g., shapefile, geopackage), OR an sf/SpatVector object containing
+polygons or points for spatial aggregation.}
 
 \item{geom_id_col}{A character string representing the column name of the unique ID
-in the polygon dataset (e.g., "GEOID"). If NULL, a row_index
+in the geometry dataset (e.g., "GEOID"). If NULL, a row_index
 column will be created and used as the geometry ID,
 and all other columns are kept in the output.}
 
@@ -59,6 +60,11 @@ to the raster data (e.g., "polynomial", "bin", "natural_spline", "b_spline", "no
 \item{trans_args}{A list of additional custom parameters to be passed to the transformation
 function (e.g., Boundary.knots for splines). Optional. The provided degree, breaks, or knots
 parameters will be automatically added to this list, depending on the trans_type.}
+
+\item{daily_agg_fun}{A character string specifying the subdaily aggregation function for hourly data.
+Options are "none" (default, no aggregation), "mean", or "sum".
+If the input data is hourly or subdaily, this aggregates to daily values first.
+If "none" or input data is already daily/monthly/yearly, no subdaily aggregation is performed.}
 
 \item{out_temp_res}{A character string specifying the output temporal resolution.
 Options are "daily", "monthly", or "yearly" (required).}
@@ -99,7 +105,7 @@ such as variable names, descriptions, and additional identifiers (default is NUL
 \item{save_console_output}{A logical value indicating whether to save console output
 to a log file (default is FALSE).}
 
-\item{save_batch_output}{Logical indicating whether to save intermediate batch outputs to disk for memory efficiency (default: TRUE).}
+\item{save_batch_output}{Logical indicating whether to save intermediate batch outputs to disk for memory efficiency (default: FALSE).}
 
 \item{overwrite_batch_output}{Logical indicating whether to overwrite existing batch files. When FALSE, existing files
 are validated to ensure layer counts match current processing parameters (default: FALSE).}
@@ -114,7 +120,7 @@ for data quality control (default is TRUE).}
 (default is 'degree_1' but if not found, it will use the first detected transformation variable)}
 
 \item{validation_var_name}{A character string describing the transformation variable
-for plot labels (default is "Temperature (C°)")}
+for plot labels (default is "Temperature (C)")}
 
 \item{verbose}{Integer controlling message verbosity: 0 = silent, 1 = concise progress messages,
 2 = detailed messages (default: 1). This applies to both the r2e2 pipeline and validation checks.}

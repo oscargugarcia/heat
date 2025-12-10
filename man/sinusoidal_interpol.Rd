@@ -24,8 +24,10 @@ maximum temperature values using a sinusoidal approach. It calculates interpolat
 hourly temperatures for each day represented in the input tmin and tmax vectors.
 }
 \examples{
+\dontrun{
   # Assuming tmin and tmax are numeric vectors of length equal to the number of days:
   hourly_temperatures <- sinusoidal_interpol(tmin = c(15, 16, 14), 
                                                   tmax = c(22, 23, 21), 
                                                   hour = 1:24)
+}
 }

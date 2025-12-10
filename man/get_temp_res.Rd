@@ -25,6 +25,7 @@ If they do, it returns the temporal resolution in the format "yearly", "monthly"
 If not, it stops with an error.
 }
 \examples{
+\dontrun{
   # Given a vector of date column names:
   date_cols <- c("2017", "2018", "2019")
   res <- get_temp_res(date_cols)  # returns "yearly"
@@ -32,4 +33,5 @@ If not, it stops with an error.
   # For monthly resolution:
   date_cols <- c("2017-01", "2017-02", "2017-03")
   res <- get_temp_res(date_cols)  # returns "monthly"
+}
 }

@@ -7,24 +7,25 @@
 get_valid_raster_files(path, pattern = "\\\\.tif$|\\\\.nc$")
 }
 \arguments{
-\item{:}{\itemize{
-\item path: A character string specifying the path to the folder containing raster files.
-\itemize{
-\item pattern: A character string specifying the file pattern to match (default is "\\.tif$|\\.nc$").
-}
-}}
+\item{path}{A character string specifying the path to the folder containing raster files.}
+
+\item{pattern}{A character string specifying the file pattern to match (default is "\\.tif$|\\.nc$"
+for GeoTIFF and NetCDF files).}
 }
 \value{
-:
-\itemize{
-\item A character vector containing paths to the valid raster files that can be read.
-}
+A character vector containing paths to the valid raster files that can be read.
 }
 \description{
-This function searches for raster files with specific extensions in a given folder,
+This function searches for raster files with specific extensions (.tif, .nc) in a given folder,
 checking whether they can be read into R. It returns a list of accessible raster files
 while printing warnings for any files that cannot be read.
 }
 \examples{
-  valid_rasters <- get_valid_raster_files(paths$path_env_rast)
+\dontrun{
+  # Get all valid .tif and .nc files
+  valid_rasters <- get_valid_raster_files("path/to/rasters/")
+  
+  # Get only NetCDF files
+  nc_files <- get_valid_raster_files("path/to/rasters/", pattern = "\\\\.nc$")
+}
 }

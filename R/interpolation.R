@@ -79,10 +79,12 @@ mean_interpol <- function(tmin, tmax) {
 #'         represented by the input vectors. The output layer are named in format "YYYY-MM-DD HH:MM", where the date corresponds to the day of the respective tmin and tmax values.
 #'
 #' @examples
+#' \dontrun{
 #'   # Assuming tmin and tmax are numeric vectors of length equal to the number of days:
 #'   hourly_temperatures <- sinusoidal_interpol(tmin = c(15, 16, 14), 
 #'                                                   tmax = c(22, 23, 21), 
 #'                                                   hour = 1:24)
+#' }
 sinusoidal_interpol <- function(tmin, tmax, hour = 1:24) {
   # Broadcast the tmin and tmax temperatures for all hours
   # length(tmin) and length(tmax) should be the same and correspond to days
@@ -166,6 +168,7 @@ sinusoidal_interpol <- function(tmin, tmax, hour = 1:24) {
 #'         interpolated hourly values based on the provided minimum and maximum temperatures.
 #'
 #' @examples
+#' \dontrun{
 #'   # Example using the interpol_min_max function:
 #'   result <- interpol_min_max(
 #'     min_rast_path = "path/to/tmin",
@@ -176,6 +179,7 @@ sinusoidal_interpol <- function(tmin, tmax, hour = 1:24) {
 #'     interpol_args = list(),
 #'     daily_agg_fun = "mean"
 #'   )
+#' }
 #' 
 #' @export
 interpol_min_max <- function(min_rast_path, max_rast_path, geometry, boundary_dates, interpol_fun, interpol_args = NULL, daily_agg_fun = "none", save_path = NULL, max_cells = 3e7, max_output_layers = 30000) {

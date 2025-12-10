@@ -101,7 +101,7 @@ NULL
 #'                           (default is 'degree_1' but if not found, it will use the first detected transformation variable)
 #'                           
 #' @param validation_var_name A character string describing the transformation variable
-#'                             for plot labels (default is "Temperature (C°)")
+#'                             for plot labels (default is "Temperature (C)")
 #'
 #' @param verbose Integer controlling message verbosity: 0 = silent, 1 = concise progress messages, 
 #'                2 = detailed messages (default: 1). This applies to both the r2e2 pipeline and validation checks.
@@ -145,7 +145,7 @@ r2e2 <- function(env_rast,
                  compression = 'zstd',
                  validation = TRUE,
                  validation_var = 'degree_1',
-                 validation_var_name = "Temperature (C°)",
+                  validation_var_name = "Temperature (C)",
                  verbose = 1) {
   
   # Check if output path is provided
@@ -245,7 +245,7 @@ r2e2 <- function(env_rast,
     writeLines(output, file.path(save_path, "global_parameters.txt"))
     
     if (verbose >= 1) {
-      message("✓ Global parameters saved")
+      message(" Global parameters saved")
     }
   }
 
@@ -256,7 +256,7 @@ r2e2 <- function(env_rast,
   if (is.character(geometry)) {
     polygons <- read_spatial_file(geometry)
     if (verbose >= 1) {
-      message("✓ Polygons loaded: ", nrow(polygons), " features")
+      message(" Polygons loaded: ", nrow(polygons), " features")
     }
   } else if (!inherits(geometry, c("sf", "SpatVector"))) {
     stop("geometry must be either a character path to a spatial file or an sf/SpatVector object")
@@ -270,7 +270,7 @@ r2e2 <- function(env_rast,
     # Validate and clean the provided sf object
     polygons <- check_spatial_file(polygons, verbose = verbose)
     if (verbose >= 2) {
-      message("✓ Geometry provided and validated: ", nrow(polygons), " rows")
+      message(" Geometry provided and validated: ", nrow(polygons), " rows")
     }
   }
   

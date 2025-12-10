@@ -23,9 +23,11 @@ and a message is printed indicating that these columns will be added manually la
 }
 }
 \examples{
+\dontrun{
 spatial_agg_args <- list(
   append_cols = c("col1", "col2")
 )
 updated_args <- check_spatial_agg_args(spatial_agg_args)
 # updated_args now contains fun = "weighted_mean", stack_apply = FALSE, and append_cols = NULL.
+}
 }

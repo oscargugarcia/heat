@@ -105,9 +105,11 @@ get_period_boundaries <- function(sec_weight_raster, boundary_dates) {
 #'       - `end_date`: The ending date of each period (one day before the next boundary date, except for the last period).
 #'
 #' @examples
+#' \dontrun{
 #'   boundary_dates <- as.Date(c("2020-01-01", "2020-06-01", "2020-12-31"))
 #'   periods <- create_periods(boundary_dates)
 #'   print(periods)
+#' }
 create_periods <- function(boundary_dates) {
   # Ensure boundary_dates is sorted in ascending order and has at least two elements
   n <- length(boundary_dates)
@@ -145,9 +147,11 @@ create_periods <- function(boundary_dates) {
 #'   - A named list of SpatRaster objects, each corresponding to one period.
 #'
 #' @examples
+#' \dontrun{
 #'   # Assuming 'cropped_raster' is a cropped SpatRaster with time metadata and
 #'   # 'period_defs' is a data.frame with start_date and end_date columns:
 #'   periods_list <- assign_weighting_periods(cropped_raster, period_defs)
+#' }
 assign_weighting_periods <- function(raster, period_defs, verbose = 1) {
   
   # Check that period_defs contains the required 'start_date' and 'end_date' columns.
@@ -319,6 +323,7 @@ check_periods <- function(env_rast_list, sec_weight_layer_names = NULL, sec_weig
 #'   that time step's value belongs to, and 0s elsewhere.
 #'
 #' @examples
+#' \dontrun{
 #' # Example 1: Basic usage with a cell value vector across 3 time steps and inner breaks at 10 and 20.
 #' # The full breaks become c(-Inf, 10, 20, Inf), resulting in 3 bins.
 #' # For a cell with values c(2, 15, 30), the output will be a 3x3 matrix.
@@ -330,6 +335,7 @@ check_periods <- function(env_rast_list, sec_weight_layer_names = NULL, sec_weig
 #'
 #' # Example 2: Passing additional arguments to findInterval.
 #' create_bins(c(2, 15, 30), breaks = c(10, 20), rightmost.closed = TRUE)
+#' }
 create_bins <- function(x, breaks, ...) {
   # Construct the full set of breaks: outer boundaries plus the inner ones.
   full_breaks <- c(-Inf, breaks, Inf)
@@ -372,11 +378,13 @@ create_bins <- function(x, breaks, ...) {
 #'     trans_type is "polynomial", it returns stats::poly.
 #'
 #' @examples
+#' \dontrun{
 #'   # Select natural spline transformation
 #'   ns_fun <- select_trans_fun("natural_spline")
 #'
 #'   # Select B-spline transformation
 #'   bs_fun <- select_trans_fun("b_spline")
+#' }
 select_trans_fun <- function(trans_type, verbose = 1) { 
   
   if (trans_type == "none") {
@@ -442,9 +450,11 @@ select_trans_fun <- function(trans_type, verbose = 1) {
 #' @return A (possibly modified) list of arguments, ensuring that required conditions are met
 #'
 #' @examples
+#' \dontrun{
 #'   # Example for a polynomial transformation:
 #'   updated_args <- check_trans(stats::poly, list(degree = 3), "polynomial")
 #'   # updated_args now contains degree = 3 and raw = TRUE.
+#' }
 check_trans <- function(fun, args, trans_type = NULL, verbose = 1) {
   
   if (identical(fun, "none")) {
@@ -536,11 +546,13 @@ check_trans <- function(fun, args, trans_type = NULL, verbose = 1) {
 #' @return A (possibly modified) list of spatial aggregation arguments.
 #'
 #' @examples
+#' \dontrun{
 #' spatial_agg_args <- list(
 #'   append_cols = c("col1", "col2")
 #' )
 #' updated_args <- check_spatial_agg_args(spatial_agg_args)
 #' # updated_args now contains fun = "weighted_mean", stack_apply = FALSE, and append_cols = NULL.
+#' }
 check_spatial_agg_args <- function(args, verbose = 1) {
   if (is.null(args$fun)) {
     if (verbose >= 2) {
@@ -596,11 +608,13 @@ check_spatial_agg_args <- function(args, verbose = 1) {
 #'   in the format "YYYY-MM-DD".
 #'
 #' @examples
+#' \dontrun{
 #'   # Assuming 'your_subdaily_raster' is a SpatRaster containing hourly data:
 #'   daily_aggregated_raster <- agg_to_daily(your_subdaily_raster, fun = "mean")
 #'
 #'   # Alternatively, to compute daily sums instead:
 #'   daily_sum_raster <- agg_to_daily(your_subdaily_raster, fun = "sum")
+#' }
 #' @export
 agg_to_daily <- function(subdaily_raster, fun = "none") {
 
@@ -1682,11 +1696,13 @@ get_area_weights <- function(raster, polygons, geom_id_col) {
 #'     data is returned.
 #'
 #' @examples
+#' \dontrun{
 #'   agg_args <- list(
 #'     out_temp_res = "monthly",
 #'     temp_agg_fun = mean
 #'   )
 #'   aggregated_DT <- temp_agg(spatial_output, agg_args)
+#' }
 #' 
 #' @export
 temp_agg <- function(spatial_output, agg_args, keep_metadata = TRUE, verbose = 1) {

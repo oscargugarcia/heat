@@ -8,7 +8,7 @@ trans_spatial_agg_polygons(
   raster_subset,
   trans_fun,
   checked_trans_args,
-  polygons,
+  geometry,
   agg_weights,
   spatial_agg_args,
   geom_id_col,
@@ -22,18 +22,18 @@ trans_spatial_agg_polygons(
 
 \item{checked_trans_args}{A list of pre-validated arguments for the transformation function.}
 
-\item{polygons}{An sf object containing spatial polygons over which the aggregation is performed.}
+\item{geometry}{An sf object containing spatial geometries (polygons or points) over which the aggregation is performed.}
 
 \item{agg_weights}{A raster or a character string (e.g., "area") used as weights in the spatial aggregation.}
 
 \item{spatial_agg_args}{A list of arguments to pass to \code{exact_extract} for spatial aggregation (e.g., aggregation function, stack_apply).}
 
-\item{geom_id_col}{The name of the column in the polygons object that identifies each polygon.}
+\item{geom_id_col}{The name of the column in the geometry object that identifies each geometry.}
 
 \item{verbose}{Integer verbosity level (0 = silent, 1 = concise, 2 = detailed).}
 }
 \value{
-A cleaned spatial aggregation output as a data table (or data frame) containing the polygon identifiers and aggregated values for each time step.
+A cleaned spatial aggregation output as a data table (or data frame) containing the geometry identifiers and aggregated values for each time step.
 }
 \description{
 This helper function processes a raster (subset) by applying a specified transformation (e.g., polynomial or spline expansion), performing spatial aggregation using the \code{exact_extract} function, and cleaning the aggregated output. It prints standardized elapsed time messages for each step (transformation, aggregation, and cleaning) to facilitate performance tracking. The final output is a cleaned data table (or data frame) that includes polygon identifiers and aggregated values for each time step.
@@ -41,6 +41,6 @@ This helper function processes a raster (subset) by applying a specified transfo
 \examples{
 \dontrun{
   result <- trans_spatial_agg_polygons(raster_subset, trans_fun, checked_trans_args,
-                                   polygons, agg_weights, spatial_agg_args, geom_id_col, verbose = 1)
+                                   geometry, agg_weights, spatial_agg_args, geom_id_col, verbose = 1)
 }
 }

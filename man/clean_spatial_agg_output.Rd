@@ -7,7 +7,7 @@
 clean_spatial_agg_output(
   extraction_result,
   time_steps,
-  polygons,
+  geometry,
   geom_id_col,
   verbose = 1
 )
