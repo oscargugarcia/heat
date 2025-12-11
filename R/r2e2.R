@@ -6,13 +6,18 @@
 NULL
 
 
-#' Raster to Environment Exposures (r2e2) Pipeline
+#' Raster to Environmental Exposures (r2e2)
 #'
-#' This function runs an aggregation pipeline that processes environmental raster data
-#' and polygon datasets to perform spatial and temporal aggregations. It loads the necessary
-#' data, applies specified transformations, and outputs aggregated results in both wide
-#' and long formats. The function also allows for the calculation of area weights if
-#' specified.
+#' @description
+#' Aggregates environmental raster data to environmental exposures following three steps:
+#' 
+#' 1. **Transformation**: Applies the specified nonlinear transformation to each raster cell's time series
+#' 2. **Spatial Aggregation**: Averages the transformed raster values over each geometry using `exactextractr`, 
+#'    optionally using secondary weights (e.g., population)
+#' 3. **Temporal Aggregation**: Aggregates the spatially averaged values to the desired temporal resolution 
+#'    (e.g., from daily to monthly or yearly)
+#'
+#' Supports both polygon and point geometries, with automatic optimization for point extraction.
 #'
 #' @param env_rast Either a character string specifying the directory path to environmental 
 #'                  rasters, OR a SpatRaster object containing the environmental data. 
@@ -28,7 +33,8 @@ NULL
 #'                     and all other columns are kept in the output.
 #'
 #' @param trans_type A character string indicating the type of transformation to apply
-#'                   to the raster data (e.g., "polynomial", "bin", "natural_spline", "b_spline", "none").
+#'                   to the raster data. Options: "polynomial", "bin", "natural_spline", 
+#'                   "b_spline", or "none" (default).
 #'
 #' @param degree An integer specifying the polynomial degree (required if trans_type = "polynomial").
 #'
@@ -55,7 +61,8 @@ NULL
 #'
 #' @param sec_weight_rast Either a character string specifying the directory path to secondary 
 #'                        weight rasters, OR a SpatRaster object containing the weight data. 
-#'                        If NULL (default), no secondary weighting is applied. 
+#'                        If NULL (default), no secondary weighting is applied. Secondary weights
+#'                        will be automatically reprojected if CRS differs from environmental raster.
 #'                        Layer names must be in date format.
 #'
 #' @param start_date Optional character string or Date object specifying the start date for
@@ -119,13 +126,13 @@ NULL
 #' - Executes spatial and temporal aggregations with optional secondary weighting.
 #' - Saves the results in both wide and long formats along with optional area weights.
 #'
-#' @return A list containing the processed data frames:
-#'         - spatial_agg: Daily aggregated data in wide format (time steps as columns, NULL if out_format = "long")
-#'         - spatial_agg_long: Daily aggregated data in long format (time steps as rows, NULL if out_format = "wide" or temporal resolution is daily)
-#'         - temp_agg_wide: Temporally aggregated data in wide format (time steps as columns, NULL if out_format = "long" or temporal resolution is daily)
-#'         - temp_agg_long: Temporally aggregated data in long format (time steps as rows, NULL if out_format = "wide")
-#'         - area_weights: Area weights data frame (always included)
-#'         Results are also saved directly to the specified output directory in parquet format when save_path is provided.
+#' @return A list containing processed exposure data with dynamic naming based on temporal resolution.
+#' Always includes area_weights. Temporal outputs are named as resolution_format (e.g., daily_wide, 
+#' monthly_long) where format depends on out_format parameter: "all" returns both wide and long formats,
+#' "wide" returns only wide format (time steps as columns), "long" returns only long format (time steps as rows).
+#' When input and output temporal resolutions match, only one set of outputs is returned.
+#' Results are saved to save_path in parquet format when provided.
+#'
 #' @export
 r2e2 <- function(env_rast,
                  geometry,

@@ -2,7 +2,7 @@
 % Please edit documentation in R/r2e2.R
 \name{r2e2}
 \alias{r2e2}
-\title{Raster to Environment Exposures (r2e2) Pipeline}
+\title{Raster to Environmental Exposures (r2e2)}
 \usage{
 r2e2(
   env_rast,
@@ -49,7 +49,8 @@ column will be created and used as the geometry ID,
 and all other columns are kept in the output.}
 
 \item{trans_type}{A character string indicating the type of transformation to apply
-to the raster data (e.g., "polynomial", "bin", "natural_spline", "b_spline", "none").}
+to the raster data. Options: "polynomial", "bin", "natural_spline",
+"b_spline", or "none" (default).}
 
 \item{degree}{An integer specifying the polynomial degree (required if trans_type = "polynomial").}
 
@@ -76,7 +77,8 @@ the input (daily), no temporal aggregation is performed.}
 
 \item{sec_weight_rast}{Either a character string specifying the directory path to secondary
 weight rasters, OR a SpatRaster object containing the weight data.
-If NULL (default), no secondary weighting is applied.
+If NULL (default), no secondary weighting is applied. Secondary weights
+will be automatically reprojected if CRS differs from environmental raster.
 Layer names must be in date format.}
 
 \item{start_date}{Optional character string or Date object specifying the start date for
@@ -134,20 +136,24 @@ for plot labels (default is "Temperature (C)")}
 2 = detailed messages (default: 1). This applies to both the r2e2 pipeline and validation checks.}
 }
 \value{
-A list containing the processed data frames:
-- spatial_agg: Daily aggregated data in wide format (time steps as columns, NULL if out_format = "long")
-- spatial_agg_long: Daily aggregated data in long format (time steps as rows, NULL if out_format = "wide" or temporal resolution is daily)
-- temp_agg_wide: Temporally aggregated data in wide format (time steps as columns, NULL if out_format = "long" or temporal resolution is daily)
-- temp_agg_long: Temporally aggregated data in long format (time steps as rows, NULL if out_format = "wide")
-- area_weights: Area weights data frame (always included)
-Results are also saved directly to the specified output directory in parquet format when save_path is provided.
+A list containing processed exposure data with dynamic naming based on temporal resolution.
+Always includes area_weights. Temporal outputs are named as resolution_format (e.g., daily_wide,
+monthly_long) where format depends on out_format parameter: "all" returns both wide and long formats,
+"wide" returns only wide format (time steps as columns), "long" returns only long format (time steps as rows).
+When input and output temporal resolutions match, only one set of outputs is returned.
+Results are saved to save_path in parquet format when provided.
 }
 \description{
-This function runs an aggregation pipeline that processes environmental raster data
-and polygon datasets to perform spatial and temporal aggregations. It loads the necessary
-data, applies specified transformations, and outputs aggregated results in both wide
-and long formats. The function also allows for the calculation of area weights if
-specified.
+Aggregates environmental raster data to environmental exposures following three steps:
+\enumerate{
+\item \strong{Transformation}: Applies the specified nonlinear transformation to each raster cell's time series
+\item \strong{Spatial Aggregation}: Averages the transformed raster values over each geometry using \code{exactextractr},
+optionally using secondary weights (e.g., population)
+\item \strong{Temporal Aggregation}: Aggregates the spatially averaged values to the desired temporal resolution
+(e.g., from daily to monthly or yearly)
+}
+
+Supports both polygon and point geometries, with automatic optimization for point extraction.
 }
 \details{
 The function performs the following main operations:
