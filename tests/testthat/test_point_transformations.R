@@ -161,13 +161,14 @@ compare_outputs <- function(actual, expected, tolerance = 1e-2, label = "output"
 #' @param env_rast_path Path to environmental raster directory
 #' @param geometry Geometry data (polygons or points)
 #' @param geom_id_col Polygon/point ID column name
-#' @param boundary_dates Date range
+#' @param start_date Start date for the analysis
+#' @param end_date End date for the analysis
 #' @param sec_weight_rast Secondary weight raster (NULL for points)
 #' @param out_temp_res Output temporal resolution
 #' @param temp_agg_fun Temporal aggregation function ("mean" or "sum")
 #' @param tolerance Numerical tolerance
 test_transformation <- function(trans_type, trans_args, baseline_dir,
-                                env_rast_path, geometry, geom_id_col, boundary_dates,
+                                env_rast_path, geometry, geom_id_col, start_date, end_date,
                                 sec_weight_rast, out_temp_res, temp_agg_fun = "mean", tolerance = 1e-2) {
   
   # Load baseline outputs
@@ -203,7 +204,8 @@ test_transformation <- function(trans_type, trans_args, baseline_dir,
       out_temp_res = out_temp_res,
       temp_agg_fun = temp_agg_fun,
       sec_weight_rast = sec_weight_rast,
-      boundary_dates = boundary_dates,
+      start_date = start_date,
+      end_date = end_date,
       out_format = "long",
       validation = FALSE,
       save_console_output = FALSE,
@@ -248,10 +250,8 @@ polygons_path <- testthat::test_path("fixtures", "data", "points.gpkg")
 # Common parameters
 geom_id_col <- "point_id"
 sec_weight_rast <- NULL  # No secondary weights for points
-boundary_dates <- c(
-  as.Date("1999-12-01"),
-  as.Date("2000-03-09")
-)
+start_date <- "1999-12-01"
+end_date <- "2000-03-09"
 
 out_temp_res <- "monthly"
 temp_agg_fun <- "mean"
@@ -285,7 +285,8 @@ test_transformation(
   env_rast_path = env_rast_path,
   geometry = geometry,
   geom_id_col = geom_id_col,
-  boundary_dates = boundary_dates,
+  start_date = start_date,
+  end_date = end_date,
   sec_weight_rast = sec_weight_rast,
   out_temp_res = out_temp_res,
   temp_agg_fun = temp_agg_fun,
@@ -304,7 +305,8 @@ test_transformation(
   env_rast_path = env_rast_path,
   geometry = geometry,
   geom_id_col = geom_id_col,
-  boundary_dates = boundary_dates,
+  start_date = start_date,
+  end_date = end_date,
   sec_weight_rast = sec_weight_rast,
   out_temp_res = out_temp_res,
   temp_agg_fun = temp_agg_fun,
@@ -323,7 +325,8 @@ test_transformation(
   env_rast_path = env_rast_path,
   geometry = geometry,
   geom_id_col = geom_id_col,
-  boundary_dates = boundary_dates,
+  start_date = start_date,
+  end_date = end_date,
   sec_weight_rast = sec_weight_rast,
   out_temp_res = out_temp_res,
   temp_agg_fun = temp_agg_fun,
@@ -342,7 +345,8 @@ test_transformation(
   env_rast_path = env_rast_path,
   geometry = geometry,
   geom_id_col = geom_id_col,
-  boundary_dates = boundary_dates,
+  start_date = start_date,
+  end_date = end_date,
   sec_weight_rast = sec_weight_rast,
   out_temp_res = out_temp_res,
   temp_agg_fun = temp_agg_fun,
@@ -361,7 +365,8 @@ test_transformation(
   env_rast_path = env_rast_path,
   geometry = geometry,
   geom_id_col = geom_id_col,
-  boundary_dates = boundary_dates,
+  start_date = start_date,
+  end_date = end_date,
   sec_weight_rast = sec_weight_rast,
   out_temp_res = out_temp_res,
   temp_agg_fun = temp_agg_fun,

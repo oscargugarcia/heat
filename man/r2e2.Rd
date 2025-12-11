@@ -17,7 +17,8 @@ r2e2(
   out_temp_res,
   temp_agg_fun = "mean",
   sec_weight_rast = NULL,
-  boundary_dates = NULL,
+  start_date = NULL,
+  end_date = NULL,
   spatial_agg_args = NULL,
   save_path = NULL,
   out_format = "all",
@@ -78,8 +79,15 @@ weight rasters, OR a SpatRaster object containing the weight data.
 If NULL (default), no secondary weighting is applied.
 Layer names must be in date format.}
 
-\item{boundary_dates}{A vector of Date objects defining the start and end dates for
-the weighting periods.}
+\item{start_date}{Optional character string or Date object specifying the start date for
+the analysis (e.g., "2020-01-01"). The environmental raster will be filtered
+to begin at this date. If NULL (default), uses the first date available in the
+environmental raster.}
+
+\item{end_date}{Optional character string or Date object specifying the end date for
+the analysis (e.g., "2020-12-31"). The environmental raster will be filtered
+to end at this date. If NULL (default), uses the last date available in the
+environmental raster.}
 
 \item{spatial_agg_args}{A list containing any specific arguments related to spatial
 aggregation, including optional append_cols for additional columns

@@ -779,6 +779,10 @@ clean_spatial_agg_output <- function(extraction_result, time_steps, geometry, ge
   time_step_names <- as.character(time_steps)
   
   # Get the polygon IDs using the metadata specification.
+  if (is.null(geom_id_col) || !geom_id_col %in% names(geometry)) {
+    stop("Error: geom_id_col '", geom_id_col, "' not found in geometry. ",
+         "Available columns: ", paste(names(geometry), collapse = ", "))
+  }
   geom_id_vector <- geometry[[ geom_id_col ]]
   
   # Split the aggregated columns into blocks corresponding to each transformation variable.
@@ -1003,6 +1007,12 @@ trans_spatial_agg_points <- function(raster_subset,
     message(" [Step 4] Cleaning output...")
   }
   
+  # Validate geom_id_col
+  if (is.null(geom_id_col) || !geom_id_col %in% names(points_buffered)) {
+    stop("Error: geom_id_col '", geom_id_col, "' not found in points_buffered. ",
+         "Available columns: ", paste(names(points_buffered), collapse = ", "))
+  }
+  
   if (identical(trans_fun, "none")) {
     # No transformation: simple reshape
     result_dt <- as.data.table(transformed_values)
@@ -1108,7 +1118,8 @@ trans_spatial_agg_points <- function(raster_subset,
 #' Batch files are saved in RDS format with compression disabled for optimal read/write speed. All batch files are
 #' retained until final processing is complete, allowing the function to resume from where it left off if interrupted.
 #' 
-#' Secondary weight rasters must be in EPSG:4326 coordinate system, otherwise an error will be thrown.
+#' Secondary weight rasters should ideally be in the same CRS as the environmental rasters. If CRS differs,
+#' the secondary weights will be automatically reprojected with a warning.
 #'
 #' @return A data.table containing the final spatial aggregation results.
 #'
@@ -1169,12 +1180,13 @@ trans_spatial_agg <- function(env_rast_list,
     if (is.na(point_crs) || is.null(point_crs)) { 
       stop("Points must have a defined CRS for buffering")
     }
-    
-    message("Turning points into polygons by creating a negligible buffer, since exact_extract requires polygon inputs...")
     polygons_buffered <- st_buffer(polygons, dist = point_buffer)
-    message("  Created buffers of ", point_buffer, " ", 
+    if (verbose >= 2) {
+          message("  Created minimal buffers of ", point_buffer, " ", 
             ifelse(st_is_longlat(polygons), "degrees", "units"), " around ", 
-            nrow(polygons), " points")
+            nrow(polygons), " points, since exact_extract requires polygon inputs")
+
+    }
   }
   
   # Infer transformation variables and max layers
@@ -1211,16 +1223,20 @@ trans_spatial_agg <- function(env_rast_list,
       
       # sec_weight_rast_list[[i]] is already a SpatRaster layer
       sec_weight_rast <- sec_weight_rast_list[[i]]
+      env_rast_subset <- env_rast_list[[i]]
       
-      # Check if secondary weight raster is in EPSG:4326
-      sec_weight_epsg <- crs(sec_weight_rast, describe = TRUE)$code
-      if (is.null(sec_weight_epsg) || is.na(sec_weight_epsg) || sec_weight_epsg != "4326") {
-        stop("Secondary weight raster must be in EPSG:4326 coordinate system. Current CRS: ", 
-             ifelse(is.null(sec_weight_epsg) || is.na(sec_weight_epsg), "Unknown", paste0("EPSG:", sec_weight_epsg)))
+      # Check if secondary weight raster CRS matches environmental raster CRS
+      sec_crs <- crs(sec_weight_rast)
+      env_crs <- crs(env_rast_subset)
+      
+      if (!same.crs(sec_weight_rast, env_rast_subset)) {
+        warning("Secondary weight raster CRS does not match environmental raster CRS. ",
+                "Attempting to reproject secondary weights. ",
+                "This may introduce slight inaccuracies.")
+        sec_weight_rast <- project(sec_weight_rast, env_rast_subset, method = "bilinear")
       }
       
       terra::window(sec_weight_rast) <- crop_extent
-      env_rast_subset <- env_rast_list[[i]]
       agg_weights <- resample(sec_weight_rast, env_rast_subset, method = "average")
     } else {
       env_rast_subset <- env_rast_list[[i]]

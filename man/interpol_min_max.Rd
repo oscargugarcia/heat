@@ -8,7 +8,8 @@ interpol_min_max(
   min_rast_path,
   max_rast_path,
   geometry,
-  boundary_dates,
+  start_date,
+  end_date,
   interpol_fun,
   interpol_args = NULL,
   daily_agg_fun = "none",
@@ -24,8 +25,9 @@ interpol_min_max(
 
 \item{geometry}{An sf object that defines geographical boundaries, used for cropping the rasters.}
 
-\item{boundary_dates}{A vector of dates defining the range for which interpolation
-is to be performed.}
+\item{start_date}{Character string or Date object specifying the start date for interpolation (e.g., "2022-01-01").}
+
+\item{end_date}{Character string or Date object specifying the end date for interpolation (e.g., "2022-01-07").}
 
 \item{interpol_fun}{A function used for interpolating the temperatures. This function
 should accept minimum and maximum temperatures as inputs.}
@@ -61,7 +63,8 @@ processing limitations.
     min_rast_path = "path/to/tmin",
     max_rast_path = "path/to/tmax",
     geometry = my_regions,
-    boundary_dates = as.Date(c("2022-01-01", "2022-01-07")),
+    start_date = "2022-01-01",
+    end_date = "2022-01-07",
     interpol_fun = sinusoidal_interpol,
     interpol_args = list(),
     daily_agg_fun = "mean"

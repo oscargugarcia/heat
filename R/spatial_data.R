@@ -204,7 +204,8 @@ get_valid_raster_files <- function(path, pattern = "\\.tif$|\\.nc$") {
 #' This function loads files from a specified directory. It allows users to filter the files based on a year range, with the years inferred from the filenames, which are expected to be in the format 'yyyy.tif' or 'yyyy.nc'. If no filtering range is provided, all available raster files will be read. The function prints informative messages detailing the loading process, including the path and names of the files being read.
 #'
 #' @param path A character string specifying the directory path containing raster files.
-#' @param sec_weight_range A numeric vector of length 2 (optional). This vector specifies the year range to filter the raster files. If NULL (default), all files are loaded without filtering.
+#' @param year_range A numeric vector of length 2 (optional). This vector specifies the year range to filter the raster files. If NULL (default), all files are loaded without filtering.
+#' @param verbose Integer verbosity level (0 = silent, 1 = concise, 2 = detailed)
 #'
 #' @return A character vector of file paths corresponding to the raster files that were read. The files are loaded into memory as a list of raster objects.
 #'
@@ -216,18 +217,22 @@ get_valid_raster_files <- function(path, pattern = "\\.tif$|\\.nc$") {
 #'   # Load secondary weight rasters filtered by year range
 #'   filtered_rasters <- filter_read_sec_weights("path/to/rasters/", c(1970, 2010))
 #' }
-filter_read_rast <- function(path, year_range = NULL) {
+filter_read_rast <- function(path, year_range = NULL, verbose = 1) {
   
   # Identify all available rasters in the folder
   rast_files <- get_valid_raster_files(path, pattern = "\\.tif$|\\.nc$") 
   
-  # Print the path from which files are being loaded
-  message(sprintf("Loading files from path: %s", path))
+  # Print the path from which files are being loaded (only if verbose >= 2)
+  if (verbose >= 2) {
+    message(sprintf("Loading files from path: %s", path))
+  }
 
   if (is.null(year_range)) {
     # No specific range provided, read all files
     filtered_files <- rast_files
-    message("No filtering applied. Reading in all available files.")
+    if (verbose >= 2) {
+      message("No filtering applied. Reading in all available files.")
+    }
   } else {
     
     # Ensure dates in year_range are correctly formatted
@@ -238,13 +243,17 @@ filter_read_rast <- function(path, year_range = NULL) {
 
     # Filter files based on the specified year range
     filtered_files <- rast_files[years >= year_range[1] & years <= year_range[2]]
-    message(sprintf("Filtering files based on the date range provided: %d to %d", year_range[1], year_range[2]))
+    if (verbose >= 2) {
+      message(sprintf("Filtering files based on the date range provided: %d to %d", year_range[1], year_range[2]))
+    }
   }
   
-  # Print the names of the files being read
-  message("Files being read:")
-  # print filenames separated by commas
-  message(paste(basename(filtered_files), collapse = ", "))
+  # Print the names of the files being read (only if verbose >= 2)
+  if (verbose >= 2) {
+    message("Files being read:")
+    # print filenames separated by commas
+    message(paste(basename(filtered_files), collapse = ", "))
+  }
   
   return(filtered_files)
 }
@@ -255,14 +264,14 @@ filter_read_rast <- function(path, year_range = NULL) {
 #' @description
 #' Reads spatial data from a file (Parquet, GPKG, Shapefile, GeoJSON, FGB, RDS), converts the geometry 
 #' to an sf object. By default, validates and cleans the geometry using `check_spatial_file()`, which
-#' ensures CRS is WGS84 (EPSG:4326), renames "geom" to "geometry", removes empty geometries, applies
+#' validates that a CRS is defined, renames "geom" to "geometry", removes empty geometries, applies
 #' st_make_valid() to polygons, and performs other validation steps. Validation can be disabled by
 #' setting `validate = FALSE`.
 #'
 #' @param file_path A string specifying the path to the spatial data file.
 #' @param validate Logical; if TRUE (default), validates and cleans the geometry using `check_spatial_file()`.
 #'
-#' @return An sf object with geometry. If validated, will be in WGS84 (EPSG:4326) with cleaned geometries.
+#' @return An sf object with geometry in its original CRS, validated and cleaned.
 #'   Point and polygon geometries are both supported and processed accordingly.
 #'
 #' @export
@@ -340,7 +349,7 @@ read_spatial_file <- function(file_path, validate = TRUE) {
 #' @param geometry An sf object to validate and clean.
 #' @param source Optional character string describing the source (e.g., file path) for messaging.
 #'
-#' @return A cleaned and validated sf object with geometry in WGS84 (EPSG:4326).
+#' @return A cleaned and validated sf object with geometry in its original CRS.
 #'
 #' @export
 #' @examples
@@ -355,22 +364,20 @@ check_spatial_file <- function(geometry, source = NULL, verbose = 1) {
   # Provide a short source label for messages
   src <- if (!is.null(source)) paste0(source, ": ") else ""
 
-  # Check the original CRS
-  original_crs <- st_crs(geometry)
-  original_epsg <- st_crs(geometry)$epsg
-
-  # If CRS is NA, assume it's WGS 84 (EPSG:4326)
-  if (is.na(original_crs)) {
-    warning(src, "CRS is missing; setting CRS to WGS 84 (EPSG:4326).")
-    st_crs(geometry) <- 4326
+  # Check that CRS is defined
+  geometry_crs <- st_crs(geometry)
+  
+  if (is.na(geometry_crs)) {
+    stop(src, "CRS is missing. Please define a coordinate reference system for your geometry.")
   }
-
-  # Transform to WGS84 if necessary
-  if (st_crs(geometry) != 4326) {
-    if (verbose >= 2) {
-      message(src, "Transforming CRS to WGS84 (EPSG:4326).")
+  
+  if (verbose >= 2) {
+    crs_name <- if (!is.na(geometry_crs$epsg)) {
+      paste0("EPSG:", geometry_crs$epsg)
+    } else {
+      "Custom CRS"
     }
-    geometry <- suppressMessages(st_transform(geometry, crs = 4326, quiet = TRUE))
+    message(src, "Geometry CRS: ", crs_name)
   }
 
   # Rename geometry column 'geom' to 'geometry' if needed.

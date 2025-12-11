@@ -12,7 +12,7 @@ check_spatial_file(geometry, source = NULL, verbose = 1)
 \item{source}{Optional character string describing the source (e.g., file path) for messaging.}
 }
 \value{
-A cleaned and validated sf object with geometry in WGS84 (EPSG:4326).
+A cleaned and validated sf object with geometry in its original CRS.
 }
 \description{
 This function performs validation and cleaning on an sf object. It sets or transforms the CRS

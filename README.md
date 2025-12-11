@@ -1,5 +1,7 @@
 # `heat` : Harmonized Environmental Exposure Aggregation Tools
 
+[![](https://zenodo.org/badge/1113902927.svg)](https://doi.org/10.5281/zenodo.17882617)
+
 The `heat` R package provides a comprehensive set of tools to compute environmental exposures for administrative boundaries or point locations. Its main aggregation function, `r2e2`, supports various nonlinear transformations (e.g., polynomial, splines, binning), temporal aggregations (e.g., daily, monthly, yearly), and scales efficiently to large raster datasets spanning multiple decades.
 
 ## Installation
@@ -66,8 +68,9 @@ exposures <- r2e2(
   sec_weight_rast = "path/to/population/",     # ... also for secondary weights
   geometry = "path/to/regions.shp",            # ... and spatial geometries
   geom_id_col = "region_id",                   # Optional: keep only ID column
-  boundary_dates = c("2000-01-01", 
-                     "2020-12-31"),            # Optional: limit time range
+  start_date = "2000-01-01",                   # Optional: Filter raster date range
+  end_date = "2020-12-31",                     # Default: full date range
+  out_format = "all",                          # Both 'long' and 'wide' output               
   trans_type = "bin",                          # Bin transformation
   breaks = c(-10, 0, 10, 20, 30),              # Bin breaks
   out_temp_res = "daily",                      # Keep daily resolution
@@ -138,6 +141,7 @@ check_raster(env_rast)                     # Checks longitude, layer names, temp
 Used to weight spatial aggregation (e.g., population-weighted averages). Same format and requirements as environmental raster data, except:
 
 -   Values: Should be positive (e.g., population counts, crop areas)
+-   CRS: Ideally matches environmental raster CRS. If not, will be reprojected to match environmental raster CRS using bilinear projection.
 -   Resolution: Will be resampled (using `terra::resample(.., method = "average")`) to match environmental raster resolution.
 
 **Note**: Secondary weight layers split up the environmental raster into weighting periods. Each weight layer creates a separate period with the layers of the environmental raster that are closest to it in time. 
@@ -147,7 +151,7 @@ Used to weight spatial aggregation (e.g., population-weighted averages). Same fo
 
 A `sf` object (polygons or points) or path to spatial file (`.gpkg`, `.shp`, `.geojson`, `.json`, `.fgb`, `.rds`, `.parquet`) meeting the following requirements:
 
--   CRS: Any valid CRS is accepted
+-   CRS: Any valid CRS is accepted, will be reprojected to match environmental raster CRS automatically.
 -   ID Column: Ideally a unique identifier column (specified via `geom_id_col`). If no ID column is provided, the row index will be used and all columns retained.
 -   Geometry Type: POLYGON, MULTIPOLYGON, POINT, or MULTIPOINT
 
@@ -264,6 +268,8 @@ exposures <- r2e2(
 <!-- ## Citation
 
 If you use this package in your research, please cite:
+
+https://doi.org/10.5281/zenodo.17882618
 
 ```         
  

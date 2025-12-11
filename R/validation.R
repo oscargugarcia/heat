@@ -412,19 +412,34 @@ validate_r2e2 <- function(results = NULL,
   
   # If results list is provided, extract components
   if (!is.null(results)) {
-    # Prefer temp_agg_long over spatial_agg_long
+    # Search for any _long or _wide data in results (e.g., monthly_long, daily_wide)
     if (is.null(df_long)) {
-      if (!is.null(results$temp_agg_long)) {
-        df_long <- results$temp_agg_long
-      } else if (!is.null(results$spatial_agg_long)) {
-        df_long <- results$spatial_agg_long
-      } else if (!is.null(results$temp_agg_wide)) {
-        # Need to reshape wide to long
-        df_long <- reshape_to_long(results$temp_agg_wide, add_time_columns = TRUE, verbose = 0)
-      } else if (!is.null(results$spatial_agg)) {
-        df_long <- reshape_to_long(results$spatial_agg, add_time_columns = TRUE, verbose = 0)
+      # Find all available _long and _wide format data
+      long_names <- grep("_long$", names(results), value = TRUE)
+      wide_names <- grep("_wide$", names(results), value = TRUE)
+      
+      # Define temporal resolution hierarchy (coarsest to finest)
+      resolution_order <- c("yearly", "monthly", "daily", "hourly", "subdaily")
+      
+      # Function to select highest level (coarsest) resolution
+      select_highest_resolution <- function(names_vec) {
+        for (res in resolution_order) {
+          matching <- grep(paste0("^", res, "_"), names_vec, value = TRUE)
+          if (length(matching) > 0) return(matching[1])
+        }
+        return(names_vec[1])  # Fallback to first if no match
+      }
+      
+      if (length(long_names) > 0) {
+        # Prefer highest (coarsest) resolution _long format
+        selected_name <- select_highest_resolution(long_names)
+        df_long <- results[[selected_name]]
+      } else if (length(wide_names) > 0) {
+        # If no _long format, reshape highest resolution _wide format
+        selected_name <- select_highest_resolution(wide_names)
+        df_long <- reshape_to_long(results[[selected_name]], add_time_columns = TRUE, verbose = 0)
       } else {
-        stop("No suitable data found in results list for validation")
+        stop("No suitable data found in results list for validation. Expected data with names ending in '_long' or '_wide'.")
       }
     }
     

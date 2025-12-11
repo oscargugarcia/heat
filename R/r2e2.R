@@ -58,8 +58,14 @@ NULL
 #'                        If NULL (default), no secondary weighting is applied. 
 #'                        Layer names must be in date format.
 #'
-#' @param boundary_dates A vector of Date objects defining the start and end dates for
-#'                       the weighting periods.
+#' @param start_date Optional character string or Date object specifying the start date for
+#'                   the analysis (e.g., "2020-01-01"). The environmental raster will be filtered
+#'                   to begin at this date. If NULL (default), uses the first date available in the
+#'                   environmental raster.
+#' @param end_date Optional character string or Date object specifying the end date for
+#'                 the analysis (e.g., "2020-12-31"). The environmental raster will be filtered
+#'                 to end at this date. If NULL (default), uses the last date available in the
+#'                 environmental raster.
 #'
 #' @param spatial_agg_args A list containing any specific arguments related to spatial
 #'                         aggregation, including optional append_cols for additional columns
@@ -133,7 +139,8 @@ r2e2 <- function(env_rast,
                  out_temp_res,
                  temp_agg_fun = "mean",
                  sec_weight_rast = NULL,
-                 boundary_dates = NULL,
+                 start_date = NULL,
+                 end_date = NULL,
                  spatial_agg_args = NULL,
                  save_path = NULL,
                  out_format = "all",
@@ -196,7 +203,7 @@ r2e2 <- function(env_rast,
       message("  No save_path provided. Results will be returned without saving.")
     }
     if (!save_batch_output) {
-      message("  Intermediate outputs will not be saved, for large datasets consider enabling save_batch_output.")
+      message("  Intermediate outputs will not be saved (save_batch_output = FALSE)")
     } else if (save_batch_output && save_path_provided) {
       message("  Batch output saving enabled. Intermediate outputs will be temporarilly saved to disk for memory efficiency.")
     }
@@ -220,8 +227,8 @@ r2e2 <- function(env_rast,
     global_params <- list(
       env_rast_type = if (is.character(env_rast)) "path" else if (inherits(env_rast, "SpatRaster")) "SpatRaster" else "NULL",
       env_rast_path = if (is.character(env_rast)) env_rast else NULL,
-      polygons_type = if (is.character(polygons)) "path" else if (inherits(polygons, c("sf", "SpatVector"))) class(polygons)[1] else "NULL",
-      polygons_path = if (is.character(polygons)) polygons else NULL,
+      geometry_type = if (is.character(geometry)) "path" else if (inherits(geometry, c("sf", "SpatVector"))) class(geometry)[1] else "NULL",
+      geometry_path = if (is.character(geometry)) geometry else NULL,
       sec_weight_rast_type = if (is.character(sec_weight_rast)) "path" else if (inherits(sec_weight_rast, "SpatRaster")) "SpatRaster" else "NULL",
       sec_weight_rast_path = if (is.character(sec_weight_rast)) sec_weight_rast else NULL,
       save_path = save_path,
@@ -229,7 +236,8 @@ r2e2 <- function(env_rast,
       geom_id_col = geom_id_col,
       sec_weights = sec_weights,  # Inferred from sec_weight_rast
       out_format = out_format,
-      boundary_dates = boundary_dates,
+      start_date = start_date,
+      end_date = end_date,
       trans_args = trans_args,
       spatial_agg_args = spatial_agg_args,
       daily_agg_fun = daily_agg_fun,
@@ -244,33 +252,33 @@ r2e2 <- function(env_rast,
     # Write to file
     writeLines(output, file.path(save_path, "global_parameters.txt"))
     
-    if (verbose >= 1) {
+    if (verbose >= 2) {
       message(" Global parameters saved")
     }
   }
 
   
-  ## ---- 1.2 Import Polygons ---------------------------------------------------------
+  ## ---- 1.2 Import geometry ---------------------------------------------------------
   
-  # Handle polygons - either load from path or validate existing object
+  # Handle geometry - either load from path or validate existing object
   if (is.character(geometry)) {
-    polygons <- read_spatial_file(geometry)
+    geometry <- read_spatial_file(geometry)
     if (verbose >= 1) {
-      message(" Polygons loaded: ", nrow(polygons), " features")
+      message(" geometry loaded: ", nrow(geometry), " features")
     }
   } else if (!inherits(geometry, c("sf", "SpatVector"))) {
     stop("geometry must be either a character path to a spatial file or an sf/SpatVector object")
   } else {
     # If a SpatVector is provided, convert to sf first
     if (inherits(geometry, "SpatVector")) {
-      polygons <- sf::st_as_sf(geometry)
+      geometry <- sf::st_as_sf(geometry)
     } else {
-      polygons <- geometry
+      geometry <- geometry
     }
     # Validate and clean the provided sf object
-    polygons <- check_spatial_file(polygons, verbose = verbose)
+    geometry <- check_spatial_file(geometry, verbose = verbose)
     if (verbose >= 2) {
-      message(" Geometry provided and validated: ", nrow(polygons), " rows")
+      message(" Geometry provided and validated: ", nrow(geometry), " rows")
     }
   }
   
@@ -280,16 +288,16 @@ r2e2 <- function(env_rast,
       message("No geom_id_col provided. Using row index as geometry ID column. All original columns will be kept in the output.")
     }
     
-    # Get column names of the polygons
-    polygon_colnames <- polygons %>% 
+    # Get column names of the geometry
+    polygon_colnames <- geometry %>% 
       st_drop_geometry() %>% 
       colnames()
     
     # Add all original column names (except row_index) to append_cols
     spatial_agg_args$append_cols <- polygon_colnames
     
-    # Add row_index column to polygons
-    polygons$row_index <- seq_len(nrow(polygons))
+    # Add row_index column to geometry
+    geometry$row_index <- seq_len(nrow(geometry))
   
     # Assign row_index as the polygon ID column
         # Update geom_id_col to "row_index"
@@ -308,7 +316,7 @@ r2e2 <- function(env_rast,
   # Handle env_rast - either load from path or validate existing raster
   if (is.character(env_rast)) {
     # Read the environmental raster files from the specified path
-    env_rast_files <- filter_read_rast(env_rast)
+    env_rast_files <- filter_read_rast(env_rast, verbose = verbose)
     
     # Read the environmental rasters into a SpatRaster
     env_rast <- rast(file.path(env_rast, env_rast_files))
@@ -322,13 +330,13 @@ r2e2 <- function(env_rast,
   # Crop raster to spatial data bounding box for efficiency
   # For point geometries, buffer by one cell to ensure cells containing points are included
   # For polygon geometries, use extent directly (terra::window() includes intersecting cells)
-  geom_types <- sf::st_geometry_type(polygons)
+  geom_types <- sf::st_geometry_type(geometry)
   is_points <- all(grepl("POINT", geom_types))
   
   if (is_points) {
-    crop_extent <- buffer_extent(env_rast, polygons, buffer_factor = 1)
+    crop_extent <- buffer_extent(env_rast, geometry, buffer_factor = 1)
   } else {
-    crop_extent <- terra::ext(polygons)
+    crop_extent <- terra::ext(geometry)
   }
   
   terra::window(env_rast) <- crop_extent
@@ -344,32 +352,33 @@ r2e2 <- function(env_rast,
   }
 
 
-  ## ---- 1.4 Handle boundary dates ---------------------------------------------------------
+  ## ---- 1.4 Handle start and end dates ---------------------------------------------------------
   
-  if (is.null(boundary_dates)) {
-    # No boundary dates provided at all
-    boundary_dates <- parse_boundary_dates(env_rast)
-    message("boundary_dates not provided. Using first and last dates from the environmental raster: ",
-            paste(boundary_dates, collapse = " to "))
-    
+  # Get raster date range for defaults
+  raster_dates <- parse_boundary_dates(env_rast)
+  
+  # Handle start_date
+  if (is.null(start_date) || is.na(start_date) || isTRUE(start_date == "")) {
+    start_date <- as.Date(raster_dates[1])
+    if (verbose >= 1) {
+      message("start_date not provided. Using first date from environmental raster: ", start_date)
+    }
   } else {
-    # Get dates from raster for potential replacement
-    raster_dates <- parse_boundary_dates(env_rast)
-    
-    # Check and replace start date
-    if (is.na(boundary_dates[1]) || isTRUE(boundary_dates[1] == "")) {
-      boundary_dates[1] <- as.Date(raster_dates[1])
-      message("Start date in boundary_dates missing, proceeding with raster start date: ", raster_dates[1])
-    }
-    
-    # Check and replace end date
-    if (is.na(boundary_dates[2]) || isTRUE(boundary_dates[2] == "")) {
-      boundary_dates[2] <- as.Date(raster_dates[2])
-      message("End date in boundary_dates missing, proceeding with raster end date: ", raster_dates[2])
-    }
+    start_date <- as.Date(start_date)
   }
   
-  boundary_dates <- c(boundary_dates[1], boundary_dates[2])
+  # Handle end_date
+  if (is.null(end_date) || is.na(end_date) || isTRUE(end_date == "")) {
+    end_date <- as.Date(raster_dates[2])
+    if (verbose >= 1) {
+      message("end_date not provided. Using last date from environmental raster: ", end_date)
+    }
+  } else {
+    end_date <- as.Date(end_date)
+  }
+  
+  # Create boundary_dates vector for internal use (maintain backward compatibility)
+  boundary_dates <- c(start_date, end_date)
 
 
   ## ---- 1.5 Import secondary Weight Raster ----------------------------------------------------------
@@ -377,7 +386,7 @@ r2e2 <- function(env_rast,
   if (sec_weights) {
     # Handle sec_weight_rast - either load from path or validate existing raster
     if (is.character(sec_weight_rast)) {
-      sec_weight_files <- filter_read_rast(sec_weight_rast)
+      sec_weight_files <- filter_read_rast(sec_weight_rast, verbose = verbose)
       if (length(sec_weight_files) != 0) {
         sec_weight_rast <- rast(file.path(sec_weight_rast, sec_weight_files))
       } else {
@@ -407,7 +416,9 @@ r2e2 <- function(env_rast,
     sec_weight_layer_names <- names(sec_weight_rast)[relevant_sec_weight_indices]
     
   } else {
-    message("No secondary weight raster provided. Proceeding without secondary weighting.")
+    if (verbose >= 2) {
+          message("No secondary weight raster provided. Proceeding without secondary weighting.")
+    }
     sec_weight_rast_list = NULL
     sec_weight_layer_names = NULL
     period_boundaries <-  boundary_dates
@@ -513,7 +524,7 @@ r2e2 <- function(env_rast,
   # Rename transformation variable
   spatial_agg <- rename_trans_var(spatial_agg, trans_type, checked_trans_args, verbose = verbose)
   
-  # Check for any polygons with missing values
+  # Check for any geometry with missing values
   date_cols <- get_date_cols(spatial_agg)
   poly_ids_missing_vals <- get_missing_vals(spatial_agg, date_cols, verbose = verbose)
   
@@ -542,7 +553,7 @@ r2e2 <- function(env_rast,
     filename_spatial_agg_wide <- paste0(in_temp_res, "_wide.parquet")
     write_parquet(spatial_agg, file.path(save_path, filename_spatial_agg_wide), 
                   compression = compression)
-    if (verbose >= 1) {
+    if (verbose >= 2) {
       message(in_temp_res, " aggregation output in wide format saved to: ", filename_spatial_agg_wide)
     }
   }
@@ -555,12 +566,12 @@ r2e2 <- function(env_rast,
             "\n---------------------------------------------------\n")
   }
   
-  area_weights <- get_area_weights(env_rast[[1]], polygons, geom_id_col)
+  area_weights <- get_area_weights(env_rast[[1]], geometry, geom_id_col)
   if (exists("env_rast")) rm(env_rast)  # Remove original raster
 
   if (save_path_provided) {
      write_parquet(area_weights, file.path(save_path, "area_weights.parquet"))
-     if (verbose >= 1) {
+     if (verbose >= 2) {
        message("Area weights saved to: area_weights.parquet")
      }
   } else {
@@ -603,7 +614,7 @@ r2e2 <- function(env_rast,
     filename_temp_agg_wide <- paste0(out_temp_res, "_wide.parquet")
     write_parquet(temp_agg_wide, file.path(save_path, filename_temp_agg_wide), 
                   compression = compression)
-    if (verbose >= 1) {
+    if (verbose >= 2) {
       message("Temporally aggregated output in wide format saved to: ", 
               out_temp_res, "_wide.parquet")
     }
@@ -626,14 +637,14 @@ r2e2 <- function(env_rast,
     
     # Save long temporally aggregated output
     temp_agg_long <- reshape_to_long(temp_agg_wide, add_time_columns = TRUE, verbose = verbose)
-    temp_agg_long <- add_appended_cols(temp_agg_long, polygons, geom_id_col, appended_cols)
+    temp_agg_long <- add_appended_cols(temp_agg_long, geometry, geom_id_col, appended_cols)
     
     if (save_path_provided) {
       # Save as parquet (no geometry in output)
       filename_temp_agg_long <- paste0(out_temp_res, "_long.parquet")
       write_parquet(temp_agg_long, file.path(save_path, filename_temp_agg_long), 
                     compression = compression)
-      if (verbose >= 1) {
+      if (verbose >= 2) {
         message("Temporally aggregated output in long format saved to: ", 
                 out_temp_res, "_long.parquet")
       }
@@ -648,14 +659,14 @@ r2e2 <- function(env_rast,
       }
       
       spatial_agg_long <- reshape_to_long(spatial_agg, add_time_columns = TRUE, verbose = verbose)
-      spatial_agg_long <- add_appended_cols(spatial_agg_long, polygons, geom_id_col, appended_cols)
+      spatial_agg_long <- add_appended_cols(spatial_agg_long, geometry, geom_id_col, appended_cols)
       
       if (save_path_provided) {
         # Save as parquet (no geometry in output)
         filename_spatial_agg_long <- paste0(in_temp_res, "_long.parquet")
         write_parquet(spatial_agg_long, file.path(save_path, filename_spatial_agg_long), 
                       compression = compression)
-        if (verbose >= 1) {
+        if (verbose >= 2) {
           message(in_temp_res, " aggregation output in long format saved to: ", filename_spatial_agg_long)
         }
       }
@@ -733,7 +744,7 @@ r2e2 <- function(env_rast,
     # This ensures r2e2 completes even if validation fails
     tryCatch({
       # Prepare geometry for validation (ensure ID column is named "geom_id")
-      validation_geometry <- polygons
+      validation_geometry <- geometry
       if (geom_id_col != "geom_id") {
         validation_geometry <- validation_geometry %>%
           dplyr::rename(geom_id = !!rlang::sym(geom_id_col))

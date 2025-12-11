@@ -78,7 +78,8 @@ consistent max_cells values.
 Batch files are saved in RDS format with compression disabled for optimal read/write speed. All batch files are
 retained until final processing is complete, allowing the function to resume from where it left off if interrupted.
 
-Secondary weight rasters must be in EPSG:4326 coordinate system, otherwise an error will be thrown.
+Secondary weight rasters should ideally be in the same CRS as the environmental rasters. If CRS differs,
+the secondary weights will be automatically reprojected with a warning.
 }
 \examples{
 \dontrun{

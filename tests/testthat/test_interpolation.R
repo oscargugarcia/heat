@@ -330,7 +330,8 @@ test_that("interpol_min_max works with mean_interpol", {
     min_rast_path = paths$tmin_dir,
     max_rast_path = paths$tmax_dir,
     geometry = geometry,
-    boundary_dates = as.Date(c("2000-01-01", "2000-01-03")),
+    start_date = "2000-01-01",
+    end_date = "2000-01-03",
     interpol_fun = mean_interpol,
     daily_agg_fun = "none"  # No aggregation needed for daily mean
   )
@@ -376,7 +377,8 @@ test_that("interpol_min_max works with sinusoidal_interpol", {
     min_rast_path = paths$tmin_dir,
     max_rast_path = paths$tmax_dir,
     geometry = geometry,
-    boundary_dates = as.Date(c("2000-01-01", "2000-01-02")),
+    start_date = "2000-01-01",
+    end_date = "2000-01-02",
     interpol_fun = sinusoidal_interpol,
     daily_agg_fun = "none"  # Keep hourly output
   )
@@ -417,12 +419,13 @@ test_that("interpol_min_max aggregates hourly to daily correctly", {
   paths <- create_tmin_tmax_rasters(n_days = 2, temp_dir = temp_dir)
   geometry <- create_test_geometry()
   
-  # Run interpol_min_max with sinusoidal_interpol and daily aggregation
+  # Run interpol_min_max with daily aggregation
   result <- interpol_min_max(
     min_rast_path = paths$tmin_dir,
     max_rast_path = paths$tmax_dir,
     geometry = geometry,
-    boundary_dates = as.Date(c("2000-01-01", "2000-01-02")),
+    start_date = "2000-01-01",
+    end_date = "2000-01-02",
     interpol_fun = sinusoidal_interpol,
     daily_agg_fun = "mean"  # Aggregate to daily mean
   )
@@ -471,7 +474,8 @@ test_that("interpol_min_max saves output when save_path is provided", {
     min_rast_path = paths$tmin_dir,
     max_rast_path = paths$tmax_dir,
     geometry = geometry,
-    boundary_dates = as.Date(c("2000-01-01", "2000-01-02")),
+    start_date = "2000-01-01",
+    end_date = "2000-01-02",
     interpol_fun = mean_interpol,
     daily_agg_fun = "none",
     save_path = output_dir

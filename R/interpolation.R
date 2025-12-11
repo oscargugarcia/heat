@@ -150,8 +150,8 @@ sinusoidal_interpol <- function(tmin, tmax, hour = 1:24) {
 #' @param min_rast_path Path to the directory containing minimum temperature raster files.
 #' @param max_rast_path Path to the directory containing maximum temperature raster files.
 #' @param geometry An sf object that defines geographical boundaries, used for cropping the rasters.
-#' @param boundary_dates A vector of dates defining the range for which interpolation 
-#'                       is to be performed.
+#' @param start_date Character string or Date object specifying the start date for interpolation (e.g., "2022-01-01").
+#' @param end_date Character string or Date object specifying the end date for interpolation (e.g., "2022-01-07").
 #' @param interpol_fun A function used for interpolating the temperatures. This function 
 #'                     should accept minimum and maximum temperatures as inputs.
 #' @param interpol_args A list of additional arguments to be passed to the interpolation function.
@@ -174,7 +174,8 @@ sinusoidal_interpol <- function(tmin, tmax, hour = 1:24) {
 #'     min_rast_path = "path/to/tmin",
 #'     max_rast_path = "path/to/tmax",
 #'     geometry = my_regions,
-#'     boundary_dates = as.Date(c("2022-01-01", "2022-01-07")),
+#'     start_date = "2022-01-01",
+#'     end_date = "2022-01-07",
 #'     interpol_fun = sinusoidal_interpol,
 #'     interpol_args = list(),
 #'     daily_agg_fun = "mean"
@@ -182,7 +183,7 @@ sinusoidal_interpol <- function(tmin, tmax, hour = 1:24) {
 #' }
 #' 
 #' @export
-interpol_min_max <- function(min_rast_path, max_rast_path, geometry, boundary_dates, interpol_fun, interpol_args = NULL, daily_agg_fun = "none", save_path = NULL, max_cells = 3e7, max_output_layers = 30000) {
+interpol_min_max <- function(min_rast_path, max_rast_path, geometry, start_date, end_date, interpol_fun, interpol_args = NULL, daily_agg_fun = "none", save_path = NULL, max_cells = 3e7, max_output_layers = 30000) {
   
   # Check if save_path is provided and create directory if needed
   save_path_provided <- !is.null(save_path) && save_path != ""
@@ -193,8 +194,10 @@ interpol_min_max <- function(min_rast_path, max_rast_path, geometry, boundary_da
   
   # ---- Step 1: Load tmin and tmax rasters -----
 
-  # Get date range from boundary_dates
-  boundary_date_range <- c(year(min(boundary_dates)), year(max(boundary_dates)))
+  # Convert start_date and end_date to Date objects and get year range
+  start_date <- as.Date(start_date)
+  end_date <- as.Date(end_date)
+  boundary_date_range <- c(year(start_date), year(end_date))
   
   # Read the environmental rasters from the specified path, filtering by date range
   files_tmin <- filter_read_rast(min_rast_path, year_range = boundary_date_range)
@@ -219,17 +222,11 @@ interpol_min_max <- function(min_rast_path, max_rast_path, geometry, boundary_da
   terra::window(tmin_raster) <- crop_extent
   terra::window(tmax_raster) <- crop_extent
   
-  # Check if boundary_dates are provided
-  if (!is.null(boundary_dates)) {
-    start_date <- boundary_dates[1]
-    end_date <- tail(boundary_dates, n = 1)
-    
-    # Filter rasters by date range
-    message('Filtering tmin date range...')
-    tmin_raster <- filter_env_rast(tmin_raster, start_date, end_date)
-    message('Filtering tmax date range...')
-    tmax_raster <- filter_env_rast(tmax_raster, start_date, end_date)
-  }
+  # Filter rasters by date range
+  message('Filtering tmin date range...')
+  tmin_raster <- filter_env_rast(tmin_raster, start_date, end_date)
+  message('Filtering tmax date range...')
+  tmax_raster <- filter_env_rast(tmax_raster, start_date, end_date)
 
   
   # ---- Step 2: Subset the raster into batches -----

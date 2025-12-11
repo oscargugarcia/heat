@@ -4,12 +4,14 @@
 \alias{filter_read_rast}
 \title{Filter and Read Rasters}
 \usage{
-filter_read_rast(path, year_range = NULL)
+filter_read_rast(path, year_range = NULL, verbose = 1)
 }
 \arguments{
 \item{path}{A character string specifying the directory path containing raster files.}
 
-\item{sec_weight_range}{A numeric vector of length 2 (optional). This vector specifies the year range to filter the raster files. If NULL (default), all files are loaded without filtering.}
+\item{year_range}{A numeric vector of length 2 (optional). This vector specifies the year range to filter the raster files. If NULL (default), all files are loaded without filtering.}
+
+\item{verbose}{Integer verbosity level (0 = silent, 1 = concise, 2 = detailed)}
 }
 \value{
 A character vector of file paths corresponding to the raster files that were read. The files are loaded into memory as a list of raster objects.

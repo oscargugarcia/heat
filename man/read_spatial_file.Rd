@@ -12,13 +12,13 @@ read_spatial_file(file_path, validate = TRUE)
 \item{validate}{Logical; if TRUE (default), validates and cleans the geometry using \code{check_spatial_file()}.}
 }
 \value{
-An sf object with geometry. If validated, will be in WGS84 (EPSG:4326) with cleaned geometries.
+An sf object with geometry in its original CRS, validated and cleaned.
 Point and polygon geometries are both supported and processed accordingly.
 }
 \description{
 Reads spatial data from a file (Parquet, GPKG, Shapefile, GeoJSON, FGB, RDS), converts the geometry
 to an sf object. By default, validates and cleans the geometry using \code{check_spatial_file()}, which
-ensures CRS is WGS84 (EPSG:4326), renames "geom" to "geometry", removes empty geometries, applies
+validates that a CRS is defined, renames "geom" to "geometry", removes empty geometries, applies
 st_make_valid() to polygons, and performs other validation steps. Validation can be disabled by
 setting \code{validate = FALSE}.
 }
