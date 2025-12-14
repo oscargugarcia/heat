@@ -16,13 +16,6 @@ if (!requireNamespace("devtools", quietly = TRUE)) {
 devtools::install_github("echolab-stanford/heat")
 ```
 
-**Note for Positron Users**: If you encounter progress bar issues in the Positron IDE, install the development version of `progress`:
-
-``` r
-devtools::install_github("r-lib/progress")
-devtools::install_github("echolab-stanford/heat")
-```
-
 ## Quick Start
 
 ### Example 1: Polynomial Transformation and Aggregation to Monthly 
@@ -264,17 +257,37 @@ exposures <- r2e2(
 -   Enable smart restart, which automatically resumes from the last successful batch when re-running after an interruption. This is enabled by default when a `save_path` is provided, `save_batch_output = TRUE`, and `overwrite_batch_output = FALSE`.
 -   If the polygons are far apart, e.g. spanning multiple countries or continents, the soon to be released `r2e2_country()` function will accelerate processing by splitting the raster by country.
 
+**Installation Note for Positron Users**: If you encounter progress bar issues in the Positron IDE, install the development version of `progress`:
 
-<!-- ## Citation
+``` r
+devtools::install_github("r-lib/progress")
+devtools::install_github("echolab-stanford/heat")
+```
+
+## Citation
 
 If you use this package in your research, please cite:
 
-https://doi.org/10.5281/zenodo.17882618
-
-```         
- 
+``` r
+Wallstein, Jonas, Brandon de la Cuesta, and Marshall Burke. 
+"Heat: An R Package for Calculating Environmental Exposures". 
+Zenodo, December 10, 2025. 
+https://doi.org/10.5281/zenodo.17882618.
 ```
--->
+
+BibTeX entry:
+
+```bibtex
+@software{wallstein_heat_2025,
+  author       = {Wallstein, Jonas and de la Cuesta, Brandon and Burke, Marshall},
+  title        = {Heat: An R Package for Calculating Environmental Exposures},
+  month        = dec,
+  year         = 2025,
+  publisher    = {Zenodo},
+  doi          = {10.5281/zenodo.17882618},
+  url          = {https://doi.org/10.5281/zenodo.17882618}
+}
+```
 
 ## Issues & Contributions
 
