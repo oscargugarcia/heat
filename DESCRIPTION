@@ -23,7 +23,10 @@ Imports:
     progress,
     sf,
     terra,
-    tidyr
+    tidyr, 
+    callr, 
+    future.callr, 
+    future
 Suggests:
     forcats,
     ggplot2,
