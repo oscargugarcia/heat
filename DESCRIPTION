@@ -26,12 +26,16 @@ Imports:
     tidyr, 
     callr, 
     future.callr, 
-    future
+    future.apply, 
+    future, 
+    reshape2, 
+    stringr, 
+    purrr, 
+    rlang
 Suggests:
     forcats,
     ggplot2,
     ggrepel,
     ggridges,
-    rlang,
     scales,
     viridis
