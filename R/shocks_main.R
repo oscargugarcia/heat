@@ -1,11 +1,9 @@
 #' @importFrom future availableCores plan sequential
 #' @importFrom future.callr callr
-#' @importFrom callr callr
 #' @importFrom stringr str_replace_all
 #' @importFrom future.apply future_lapply
 #' @importFrom arrow open_dataset write_parquet
 #' @importFrom data.table rbindlist data.table setorder setDT
-#' @importFrom reshape2 melt
 #' @importFrom purrr map2 reduce
 #' @importFrom rlang expr sym
 #' @importFrom dplyr select any_of collect filter mutate
@@ -20,21 +18,22 @@ NULL
 #' @param pol_date_pairs A dataframe with unique geometry id and date pairs. The geometry IDs must correspond to those
 #'                       in the parquet file with climate measures. Dates must be in date format (eg: "YYYY-MM-DD"). 
 #'                       
-#' @param conditions_list A named list of conditions to query the parquet file with climate measures. The names conditions 
+#' @param conditions_list A named list of conditions to query the parquet file with climate measures. The named conditions 
 #'                        should be: 
 #'                        1. data_path: A character string with the path to the parquet file.
-#'                        2. poly_id: A vector of unique geometry IDs.
-#'                        3. product_name: A character string name of the climate product contained in the parquet file (e.g., "mswep").
-#'                        4. trans_type: A character string indicating the type of transformations to be included (e.g., "polynomial").
-#'                        5. trans_var: A character string indicating the degrees of the transformation to include.
-#'                        6. clim_var: A character string indicating the name of the climate variable of interest. 
-#'                        7. product_temp_res: A character indicating the temporal resolution of the product. Must be one of the following: "daily" or "monthly" ("yearly" not supported yet). 
+#'                        2. geom_id: A vector of unique geometry IDs.
+#'                        3. trans_type: A character string indicating the type of transformations to be included (e.g., "polynomial").
+#'                        4. trans_var: A character string indicating the degrees of the transformation to include.
+#'                        5. product_temp_res: A character indicating the temporal resolution of the product. Must be one of the following: "daily" or "monthly" ("yearly" not supported yet). 
+#' @param geom_id_col_parquet: a character string indicating the name of the column in the parquet file that identifies the geometries
+#' @param geom_id_col_df: a character string indicating the name of the column in the that identifies the geometries
+#' @param date_id_col_df: a character string indicating the name of the column in the dataframe that identifies the dates
 #' @param window An integer indicating the length of the data sequence (i.e., the number of tempora units in the data sequence, such as the number of days).
 #' @param start: An integer indicating the offset in days with respect to the date polygon date. 
 #' @param hist_lags: An integer indicating the number of years to construct the historical baseline. Required if window_spec is "dynamic" or "both".
 #' @param align: A character string indicating whether the sequence is left- or right-aligned with respect to the polygon date. 
 #'               Left-alignment means that the sequence contains dates AFTER the polygon date. Right-alingment means that the sequence includes dates BEFORE the polygon date. 
-#' @param bin_width: An integer indicating the number of days in each temporal bin that divides the date sequence (e.g., 30 means each bin contains 30 days).
+#' @param time_step_size: An integer indicating the number of days in each temporal bin that divides the date sequence (e.g., 30 means each bin contains 30 days).
 #' @param disjoint: A boolean indicating whether the bins are disjoint or overlapping. Default is overlapping (disjoint = FALSE).
 #' @param window_spec: A character string indicating whether the historical baseline is dynamic, fixed or both. Must be either "dynamic", "fixed", or "both".
 #' @param start_date: A character string in date format ("YYYY-MM-DD") indicating the start date of the historical window. Only required if window_spec= "dynamic" or window_spec="both". 
@@ -68,14 +67,15 @@ NULL
 shocks_wrapper <- function(
     pol_date_pairs, 
     conditions_list, 
+    geom_id_col_parquet,
+    geom_id_col_df, 
+    date_id_col_df,
     window, 
     start, 
     hist_lags, 
     align, 
-    bin_width, 
+    time_step_size, 
     window_spec, 
-    start_date, 
-    stop_date,
     disjoint, 
     int_threshold,
     prop_cores, 
@@ -83,18 +83,24 @@ shocks_wrapper <- function(
     query,  
     output_path, 
     error_log_path, 
-    met_cols = c("product_name", "trans_type", "trans_var", "clim_var"),
+    start_date = NULL, 
+    stop_date = NULL,
+    met_cols = c("trans_type", "trans_var"),
     date_tolerance_days = 10
     ){
   
   # ------------------------ Input Validation ----------------------
-  # Ensure all required pàckages are installed
+  # Ensure all required packages are installed
   check_packages()
   
+  # Add polygon-date unique ID for downstream processing
+  pol_date_pairs <- create_pairs(pol_date_pairs, geom_id_col = geom_id_col_df, date_id_col = date_id_col_df) # Add renaming columns ids
+  
+  
   # Validate inputs
-  validate_inputs(pol_date_pairs, conditions_list, window, start, hist_lags, align, bin_width, prop_cores, int_threshold)
+  validate_inputs(pol_date_pairs, conditions_list, window, start, hist_lags, align, time_step_size, prop_cores, int_threshold)
   if(is.null(output_path) | is.null(error_log_path)){stop("Please provide an output and/or and error log path.")}
-  if(window_spec %in% c("fixed", "both") & (is.null(start_date) | is.null(stop_date))){stop("Provide a start date and stop date if window_spec is fixed or both.")}
+  if(window_spec %in% c("fixed", "both") && (is.null(start_date) | is.null(stop_date))){stop("Provide a start date and stop date if window_spec is fixed or both.")}
   
   # Ensure product resolution is specified
   prod_res <- conditions_list[["product_temp_res"]]
@@ -141,7 +147,8 @@ shocks_wrapper <- function(
     max_d <- as.Date(max(climate_dates))
     
     orig_nrow <- nrow(pol_date_pairs)
-    excluded_dates <- pol_date_pairs[as.Date(pol_date_pairs$date) < min_d | as.Date(pol_date_pairs$date) > max_d, ]$date
+    excluded_pols <- pol_date_pairs[as.Date(pol_date_pairs$date) < min_d | as.Date(pol_date_pairs$date) > max_d, ]
+    excluded_dates <- excluded_pols$date
     pol_date_pairs <- pol_date_pairs[as.Date(pol_date_pairs$date) >= min_d & as.Date(pol_date_pairs$date) <= max_d, ]
     
     filtered_nrow <- nrow(pol_date_pairs)
@@ -149,7 +156,7 @@ shocks_wrapper <- function(
     print(paste("Kept", filtered_nrow, "out of", orig_nrow, "polygon-date pairs (the dropped polygon-dates were out of range) | ~", 100 * round((filtered_nrow/orig_nrow), 2), "% kept."))
     
     # Explicitly print dates not found in dataset
-    print(paste("Dates excluded:", sort(excluded_dates)))
+    print(paste("Dates excluded:", sort(unique(excluded_dates))))
     
   } else if (prod_res == "monthly"){
     climate_dates <- colnames(p)[grepl("^\\d{4}-\\d{2}$", colnames(p))]
@@ -163,7 +170,8 @@ shocks_wrapper <- function(
     max_d <- as.Date(max(climate_dates))
     
     orig_nrow <- nrow(pol_date_pairs)
-    excluded_dates <- pol_date_pairs[as.Date(pol_date_pairs$date_month_fmt) < min_d | as.Date(pol_date_pairs$date_month_fmt) > max_d, ]$date
+    excluded_pols <- pol_date_pairs[as.Date(pol_date_pairs$date_month_fmt) < min_d | as.Date(pol_date_pairs$date_month_fmt) > max_d, ]$date
+    excluded_dates <- excluded_pols$date
     pol_date_pairs <- pol_date_pairs[as.Date(pol_date_pairs$date_month_fmt) >= min_d & as.Date(pol_date_pairs$date_month_fmt) <= max_d, ]
     
     filtered_nrow <- nrow(pol_date_pairs)
@@ -171,7 +179,7 @@ shocks_wrapper <- function(
     print(paste("Kept", filtered_nrow, "out of", orig_nrow, "polygon-date pairs (dropped polygons were out of range) | ~", 100 * round((filtered_nrow/orig_nrow), 2), "% kept."))
     
     # Explicitly print dates not found in dataset
-    print(paste("Dates excluded:", sort(excluded_dates)))
+    print(paste("Dates excluded:", sort(unique(excluded_dates))))
   }
   
   # Check metadata columns are correct
@@ -207,9 +215,6 @@ shocks_wrapper <- function(
   }
   
   # ------------------------------ Pre Processing ----------------------------------
-  # Add polygon-date unique ID
-  pol_date_pairs <- create_pairs(pol_date_pairs) 
-  
   # Group polygons by date
   print(paste("Grouping polygons by date proximity (tolerance:", date_tolerance_days, "days)"))
   pol_date_pairs_grouped <- group_polygons_by_date(pol_date_pairs, tolerance_days = date_tolerance_days)
@@ -235,11 +240,12 @@ shocks_wrapper <- function(
     shock_res <- shocks(
       pol_date_pairs_grouped = pol_date_pairs_grouped,
       conditions = conditions_list, 
+      geom_id_col = geom_id_col_parquet, 
       window = window, 
       start = start, 
       hist_lags = hist_lags, 
       align = align, 
-      bin_width = bin_width, 
+      time_step_size = time_step_size, 
       window_spec = "dynamic", 
       prod_res = prod_res,
       start_date = NULL, 
@@ -260,11 +266,12 @@ shocks_wrapper <- function(
     shock_res <- shocks(
       pol_date_pairs_grouped = pol_date_pairs_grouped,
       conditions = conditions_list, 
+      geom_id_col = geom_id_col_parquet, 
       window = window, 
       start = start, 
       hist_lags = hist_lags, 
       align = align, 
-      bin_width = bin_width, 
+      time_step_size = time_step_size, 
       window_spec = "fixed", 
       prod_res = prod_res,
       start_date = start_date, 
@@ -286,11 +293,12 @@ shocks_wrapper <- function(
     shock_res_d <- shocks(
       pol_date_pairs_grouped = pol_date_pairs_grouped,
       conditions = conditions_list, 
+      geom_id_col = geom_id_col_parquet, 
       window = window, 
       start = start, 
       hist_lags = hist_lags, 
       align = align, 
-      bin_width = bin_width, 
+      time_step_size = time_step_size, 
       window_spec = "dynamic", 
       prod_res = prod_res,
       start_date = NULL, 
@@ -311,11 +319,12 @@ shocks_wrapper <- function(
     shock_res_f <- shocks(
       pol_date_pairs_grouped = pol_date_pairs_grouped,
       conditions = conditions_list, 
+      geom_id_col = geom_id_col_parquet, 
       window = window, 
       start = start, 
       hist_lags = hist_lags, 
       align = align, 
-      bin_width = bin_width, 
+      time_step_size = time_step_size, 
       window_spec = "fixed", 
       prod_res = prod_res,
       start_date = start_date, 
@@ -341,6 +350,14 @@ shocks_wrapper <- function(
   na_cols_error_logs <- dir(path = file.path(error_log_path, "intermediate"), pattern = "NA_data_error_log_", full.names = TRUE)
   final_error_list <- list()
   
+  # Add excluded polygons
+  if (nrow(excluded_pols) != 0) {
+    cat("------------------------------------------------------------------------------------------------\n")
+    cat("Some polygons were excluded because their date was outside of the product´s range.")
+    cat("Returning a named list. Use [[errors]][[excluded_polygons]] to inspect the dates and the associated polygons that were excluded.\n")
+    final_error_list[["excluded_polygons"]] <- excluded_pols
+    
+  }
   if (length(miss_cols_error_logs) != 0){
     cat("------------------------------------------------------------------------------------------------\n")
     cat("WARNING:\nThere are error logs concerning missing dates in the parquet file:\n")
@@ -371,10 +388,10 @@ shocks_wrapper <- function(
     cat("Returning error log list.\n")
     if (length(dir(path = file.path(output_path, "final"), pattern = paste0(query, ".*\\.parquet$"), full.names = TRUE)) > 0){
       cat("Output for valid polygons and sequences was exported to", paste0(output_path, "/final\n"))
-      outpur_desc <- dir(path = file.path(output_path, "final"), pattern = paste0(query, ".*\\.parquet$"), full.names = TRUE)
+      output_desc <- dir(path = file.path(output_path, "final"), pattern = paste0(query, ".*\\.parquet$"), full.names = TRUE)
     } else {
       cat("Error creating the final parquet file. Check the error logs.\n")
-      output_desc <- NULL
+      output_desc <- ""
     }
     return(
       list(
@@ -411,12 +428,13 @@ shocks_wrapper <- function(
 #'                               in the parquet file with climate measures. Dates must be in date format (eg: "YYYY-MM-DD"). Inherited from shocks_wrapper.
 #'                       
 #' @param conditions_list A named list of conditions to query the parquet file with climate measures. Inherited from shocks_wrapper.
+#' @param geom_id_col: a character string indicating the name of the column in the parquet file that identifies the geometries
 #' @param window An integer indicating the length of the data sequence. Inherited from shocks_wrapper.
 #' @param start: An integer indicating the offset in days with respect to the date polygon date. Inherited from shocks_wrapper.
 #' @param hist_lags: An integer indicating the number of years to construct the historical baseline. Required if window_spec is "dynamic" or "both". Inherited from shocks_wrapper.
 #' @param align: A character string indicating whether the sequence is left- or right-aligned with respect to the polygon date. Inherited from shocks_wrapper.
 #'               Left-alignment means that the sequence contains dates AFTER the polygon date. Right-alignment means that the sequence includes dates BEFORE the polygon date. Inherited from shocks_wrapper. 
-#' @param bin_width: An integer indicating the number of days in each temporal bin that divides the date sequence. Inherited from shocks_wrapper.
+#' @param time_step_size: An integer indicating the number of days in each temporal bin that divides the date sequence. Inherited from shocks_wrapper.
 #' @param disjoint: A boolean indicating whether the bins are disjoint or overlapping. Inherited from shocks_wrapper.
 #' @param window_spec: A character string indicating whether the historical baseline is dynamic, fixed or both. Inherited from shocks_wrapper.
 #' @param start_date: A character string in date format ("YYYY-MM-DD") indicating the start date of the historical window. Only required if window_spec= "dynamic" or window_spec="both". Inherited from shocks_wrapper. 
@@ -447,11 +465,12 @@ shocks <- function(
     n_workers,  
     pol_date_pairs_grouped, 
     conditions_list, 
+    geom_id_col,
     window, 
     start, 
     hist_lags, 
     align, 
-    bin_width, 
+    time_step_size, 
     window_spec, 
     prod_res,
     start_date, 
@@ -467,7 +486,7 @@ shocks <- function(
   
   # Define bin scheme
   bin_scheme <- tryCatch({
-    create_bin_scheme(window = window, bin_width = bin_width, align = align, disjoint = disjoint)
+    create_bin_scheme(window = window, time_step_size = time_step_size, align = align, disjoint = disjoint)
   }, error = function(e) {
     stop(paste("Error creating bin scheme:", e$message))
   })
@@ -489,6 +508,7 @@ shocks <- function(
             group = group_id,
             pol_date_pairs = chunk_pol_date_pairs, 
             conditions_list = conditions_list, 
+            geom_id_col,
             window = window, 
             start = start, 
             hist_lags = hist_lags, 
@@ -512,12 +532,57 @@ shocks <- function(
         }
         
         # Polygons to process
-        unique_polygons <- unique(chunk_pol_date_pairs$poly_id)
+        # --- Read in cases where polygon-dates did not pass the threshold limit
+        suppressWarnings(
+          error_list <- tryCatch({
+            readRDS(
+              file.path(error_log_path, paste0("intermediate/", "missing_cols_error_log_", group_id, "_" , window_spec, ".RDS"))
+            )
+          }, 
+          error = function(e){
+            return(NULL)
+          })
+        )
+        
+        if (!is.null(error_list)){
+          
+          problematic_combinations <- data.frame(
+            geom_id = character(0),
+            date = character(0),
+            int_pct = numeric(0),
+            stringsAsFactors = FALSE
+            )
+          
+          for (error_case in error_list) {
+            
+            error_date <- names(error_case)
+            error_polygons <- error_case[[error_date]]$polygons
+            error_int <- error_case[[error_date]]$intersection_pct
+            
+            problematic_combinations <- rbind(
+              problematic_combinations,
+              data.frame(
+                geom_id = error_polygons,
+                date = rep(error_date, length(error_polygons)),
+                int_pct = rep(error_int, length(error_polygons)),
+                stringsAsFactors = FALSE
+              )
+            )
+          }
+          
+          problematic_combinations <- create_pairs(problematic_combinations)
+          chunk_pol_date_pairs <- chunk_pol_date_pairs[!chunk_pol_date_pairs$pol_date_id %in% problematic_combinations$pol_date_id, ]
+    
+        }
+
+        # Extract polygon ids to process
+        unique_polygons <- unique(chunk_pol_date_pairs$geom_id)
+        
         # Process ALL polygons in this group
         all_polygon_results <- lapply(unique_polygons, function(polygon_id) {
           
           # Get dates for this specific polygon
-          polygon_dates <- chunk_pol_date_pairs[chunk_pol_date_pairs$poly_id == polygon_id, ]
+          polygon_dates <- chunk_pol_date_pairs[chunk_pol_date_pairs$geom_id == polygon_id, ]
           
           # Pre compute dates
           windows_data <- lapply(
@@ -540,7 +605,7 @@ shocks <- function(
             })
           
           # Filter data for this polygon
-          poly_data <- chunk_main_df[poly_id == polygon_id]
+          poly_data <- chunk_main_df[geom_id == polygon_id]
           
           # Check for NAs in data
           na_check_results <- check_na_in_date_sequences(
@@ -688,7 +753,7 @@ get_window_estimates_vectorized <- function(
 ) {
   
   # Ensure we get all dates for a specific polygon at once
-  poly_dates <- pol_date_pairs_set[pol_date_pairs_set$poly_id == polygon_id, ]$date
+  poly_dates <- pol_date_pairs_set[pol_date_pairs_set$geom_id == polygon_id, ]$date
   
   # Get unique date columns needed 
   all_date_columns <- unique(
@@ -699,7 +764,7 @@ get_window_estimates_vectorized <- function(
   
   # Subset all the necessary columns for the polygon-date pairs in question
   all_date_columns <- intersect(all_date_columns, climate_dates)
-  polygon_data <- main_dt[poly_id == polygon_id, .SD, .SDcols = c(all_date_columns, metad_cols)]
+  polygon_data <- main_dt[geom_id == polygon_id, .SD, .SDcols = c(all_date_columns, metad_cols)]
   
   # Process all date-transformation combinations in one data.table operation
   results <- polygon_data[, {
@@ -766,7 +831,7 @@ get_window_estimates_vectorized <- function(
   }, by = .I]
   
   # Add metadata and identifiers
-  results[, poly_id := polygon_id]
+  results[, geom_id := polygon_id]
   results[, time_step_id := bin_name]
   results[, window_type := window_spec]
   
@@ -775,15 +840,16 @@ get_window_estimates_vectorized <- function(
   results <- cbind(results, metadata_expanded[rep(1:.N, each = length(poly_dates))])
   
   # Pivot from wide to long
-  id_vars <- c("poly_id", "date", metad_cols, "window_type", "time_step_id")
+  id_vars <- c("geom_id", "date", metad_cols, "window_type", "time_step_id")
   measure_vars <- c("contemp_mean", "contemp_sd", "hist_mean", "hist_sd", "mean_shock", "sd_shock")
   
   data_pivoted <- reshape2::melt(results, id.vars = id_vars, measure.vars = measure_vars, variable.name = "measure")
   
   # Arrrange
-  data.table::setorder(data_pivoted, poly_id, date, clim_var, product_name, trans_type, trans_var, measure)
+  order_cols <- intersect(c("geom_id", "date", metad_cols, "measure"), names(data_pivoted))
+  data.table::setorderv(data_pivoted, cols = order_cols)
   
-  return(data_pivoted)
+  return(data_pivoted) 
 }
 
 
@@ -823,6 +889,8 @@ daily_shocks <- function(current_ds, dates_mat, bin, return_measure, target_df, 
   window_sd <- tryCatch({
     apply(target_df[, ..date_columns], 1, sd, na.rm = TRUE)
   }, error = function(e) {
+    print(paste("Error:", e))
+    print(target_df[, ..date_columns])
     # Idem
     NA
   })
@@ -1013,7 +1081,7 @@ check_na_in_date_sequences <- function(windows_data, polygon_id, main_dt, metad_
   all_date_columns <- intersect(all_date_columns, climate_dates)
   
   # Filter data for this polygon
-  polygon_data <- main_dt[poly_id == polygon_id, .SD, .SDcols = c(all_date_columns, metad_cols)]
+  polygon_data <- main_dt[geom_id == polygon_id, .SD, .SDcols = c(all_date_columns, metad_cols)]
   
   if (nrow(polygon_data) == 0) {
     warning(paste("Polygon", polygon_id, "had no data."))
@@ -1049,6 +1117,7 @@ check_na_in_date_sequences <- function(windows_data, polygon_id, main_dt, metad_
 #' @param pol_date_pairs A dataframe with unique geometry id and date pairs and a group id. The geometry IDs must correspond to those
 #'                       in the parquet file with climate measures. Dates must be in date format (eg: "YYYY-MM-DD"). Inherited from shocks_wrapper.
 #'                       
+#' @param geom_id_col: a character string indicating the name of the column in the parquet file that identifies the geometries
 #' @param conditions_list A named list of conditions to query the parquet file with climate measures. Inherited from shocks_wrapper.
 #' @param start: An integer indicating the offset in days with respect to the date polygon date. Inherited from shocks_wrapper.
 #' @param window An integer indicating the length of the data sequence. Inherited from shocks_wrapper.
@@ -1069,6 +1138,7 @@ check_na_in_date_sequences <- function(windows_data, polygon_id, main_dt, metad_
 get_data <- function(
     group, 
     pol_date_pairs, 
+    geom_id_col, 
     conditions_list, 
     start, 
     window, 
@@ -1112,7 +1182,7 @@ get_data <- function(
       
       # Exclude sequences with a pct of intersection lower than specified threshold
       if (pct_int < int_threshold){ 
-        problematic_pols <- unique(pol_date_pairs[pol_date_pairs$date == u_date, ]$poly_id)
+        problematic_pols <- unique(pol_date_pairs[pol_date_pairs$date == u_date, ]$geom_id)
         error_list[[u_date]] <- list(polygons = problematic_pols, intersection_pct = 100 * pct_int)  # Identify problematic polygons
       } else {
         success_list[[u_date]] <- dates_int  # Return only the intersection of dates
@@ -1146,13 +1216,14 @@ get_data <- function(
   
   
   if (length(errors) != 0){
+    cat("\nGroup", group, "\n")
     cat("\n WARNING:\n some dates sequences do not reach the minimum intersection threshold of", 100 * int_threshold ,"% with the product´s range. Check the error log list to inspect which sequences and polygons are dropped.\n \n")
-    saveRDS(errors, file = paste0(error_log_path, "/intermediate/", "missing_cols_error_log_", group, "_" , window_spec, ".RDS"))
+    saveRDS(errors, file = file.path(error_log_path, paste0("intermediate/", "missing_cols_error_log_", group, "_" , window_spec, ".RDS")))
   }
   
   # Stop if no dates can be processed
   if(is.null(dates_cols)){
-    saveRDS(errors, file = paste0(error_log_path, "/intermediate/", "missing_cols_error_log_", group, "_", window_spec, ".RDS"))
+    saveRDS(errors, file = file.path(error_log_path, paste0("intermediate/", "missing_cols_error_log_", group, "_", window_spec, ".RDS")))
     stop("All dates are outside of the product´s range using the current threshold!")
   }
   
@@ -1168,9 +1239,10 @@ get_data <- function(
   # Copy conditions list
   conditions_copy <- conditions_list
   
-  # Drop path to prevent errors when querying the dataset
+  # Drop elements to prevent errors when querying the dataset
   conditions_copy[["data_path"]] <- NULL
   conditions_copy[["product_temp_res"]] <- NULL
+  
   
   # Create a vector of the expressions of the conditions based on the named conditions list
   filter_expressions <- purrr::map2(
@@ -1184,13 +1256,19 @@ get_data <- function(
   
   # Scan the parquet file
   parquet_scan <- arrow::open_dataset(data_path)
+  if (!geom_id_col %in% colnames(parquet_scan)){stop("Error: the geom_id column is not present in the parquet file. Please check.")}
   
+
   # Return selected rows and columns based on conditions
+  cols_to_load <- names(conditions_copy)
+  if ((!"trans_type" %in% cols_to_load) && ("trans_type" %in% colnames(parquet_scan))){cols_to_load <- c(cols_to_load, "trans_type")}
+  if ((!"trans_var" %in% cols_to_load) && ("trans_var" %in% colnames(parquet_scan))){cols_to_load <- c(cols_to_load, "trans_var")}
   data_main <- parquet_scan |>
+    dplyr::rename(geom_id = !!rlang::sym(geom_id_col)) |>
     dplyr::select(
       dplyr::any_of(
         c(
-          names(conditions_copy), 
+          cols_to_load, 
           dates_cols
         )
       )

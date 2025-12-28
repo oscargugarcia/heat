@@ -1,6 +1,5 @@
 #' @importFrom stringr str_replace_all
-#' @importFrom dplyr filter mutate
-#' @importFrom 
+#' @importFrom dplyr filter mutate select any_of
 NULL
 
 #' Given a baseline date, return a sequence of dates with a specified alignment, width and lags. 
@@ -139,7 +138,7 @@ window_seq <- function(d, start, window, align, hist_lags, window_spec, start_da
 #' This function creates a list of boolean vectors that indicate the position of the dates that fall into the specified bins.
 #'
 #' @param window Integer specifying the size of the sequence of dates.
-#' @param bin_width Integer indicating the size of each bin. Within the window. If window %% bin_width == 0, then n bins of size bin_width and 1 bin of size y (the remainder) are returned such that window = n * bin_width + y. Otherwise, n bins of size bin_Width are returned.
+#' @param time_step_size Integer indicating the size of each bin. Within the window. If window %% time_step_size == 0, then n bins of size time_step_size and 1 bin of size y (the remainder) are returned such that window = n * time_step_size + y. Otherwise, n bins of size time_step_size are returned.
 #' @param align Character indicating the alignment of the window with respect to the interview date. 
 #' @param disjoint whether the bins are disjoint or not. Default is to return overlapping bins. 
 #' 
@@ -149,27 +148,27 @@ window_seq <- function(d, start, window, align, hist_lags, window_spec, start_da
 #' \dontrun{
 #'   create_bin_scheme(10, 5, "right", disjoint = FALSE)
 #' }
-create_bin_scheme <- function(window, bin_width, align, disjoint = FALSE){
+create_bin_scheme <- function(window, time_step_size, align, disjoint = FALSE){
   
   # Input validation
   if (!align %in% c("left", "right", "center")) {
     stop("align must be 'left', 'right', or 'center'")
   }
-  if (window <= 0 || bin_width <= 0) {
-    stop("window and bin_width must be positive integers")
+  if (window <= 0 || time_step_size <= 0) {
+    stop("window and time_step_size must be positive integers")
   }
-  if (bin_width > window) {
-    stop("bin_width cannot be larger than window")
+  if (time_step_size > window) {
+    stop("time_step_size cannot be larger than window")
   }
   
   # Estimate number of bins
-  if (window %% bin_width == 0){
+  if (window %% time_step_size == 0){
     r <- 0
-    n_bins <- window/bin_width
+    n_bins <- window/time_step_size
     equal <- TRUE
   } else {
-    r <- window %% bin_width
-    n_bins <- (window - r)/bin_width
+    r <- window %% time_step_size
+    n_bins <- (window - r)/time_step_size
     equal <- FALSE
   }
   
@@ -184,9 +183,9 @@ create_bin_scheme <- function(window, bin_width, align, disjoint = FALSE){
       function(i){
         bool_vec <- rep(FALSE, window)
         if(i == 1){
-          bool_vec[i:bin_width] <- TRUE
+          bool_vec[i:time_step_size] <- TRUE
         } else {
-          bool_vec[(bin_width * (i - 1) + 1):(bin_width * i)] <- TRUE
+          bool_vec[(time_step_size * (i - 1) + 1):(time_step_size * i)] <- TRUE
         } 
         return(bool_vec)
       }
@@ -201,9 +200,9 @@ create_bin_scheme <- function(window, bin_width, align, disjoint = FALSE){
     bin_names <- sapply(1:length(bins), function(i){
       if(i <= n_bins){
         if(i == 1){
-          b_name <- paste0(1, "_", bin_width)
+          b_name <- paste0(1, "_", time_step_size)
         } else {
-          b_name <- paste0(bin_width * (i - 1) + 1, "_", bin_width * i) 
+          b_name <- paste0(time_step_size * (i - 1) + 1, "_", time_step_size * i) 
         }
       } else {
         # Remainder bin
@@ -218,7 +217,7 @@ create_bin_scheme <- function(window, bin_width, align, disjoint = FALSE){
       1:n_bins, 
       function(i){
         bool_vec <- rep(FALSE, window)
-        bool_vec[1:(i * bin_width)] <- TRUE
+        bool_vec[1:(i * time_step_size)] <- TRUE
         return(bool_vec)
       }
     )
@@ -232,7 +231,7 @@ create_bin_scheme <- function(window, bin_width, align, disjoint = FALSE){
     
     bin_names <- sapply(1:length(bins), function(i){
       if(i <= n_bins){
-        paste0("1_", i * bin_width)
+        paste0("1_", i * time_step_size)
       } else {
         paste0("1_", window)
       }
@@ -248,20 +247,49 @@ create_bin_scheme <- function(window, bin_width, align, disjoint = FALSE){
 #' Return a dataframe with a column where a unique ID in the form polygonid_date is included
 #'
 #' @param pol_date_pairs dataframe with unique polygon date pairs
+#' @param geom_id_col character string with the name of the column that identifies geometries
+#' @param date_id_col character string with the name of the column that identifies dates
 #'
 #' @return a dataframe equal to the original plus the polygonid_date column
 #'
-create_pairs <- function(pol_date_pairs){
+create_pairs <- function(pol_date_pairs, geom_id_col = "geom_id", date_id_col = "date"){
   
+  # Input validation
+  if (!geom_id_col %in% names(pol_date_pairs)) {
+    stop(paste("Column", geom_id_col, "not found in pol_date_pairs"))
+  }
+  
+  if (!date_id_col %in% names(pol_date_pairs)) {
+    stop(paste("Column", date_id_col, "not found in pol_date_pairs"))
+  }
+
+  # Validate dates
+  tryCatch({
+    as.Date(pol_date_pairs[[date_id_col]])
+  }, error = function(e) {
+    stop("Invalid date format in pol_date_pairs$date. Use date format (e.g., YYYY-MM-DD).")
+  })
+  
+  # Create the composite ID
   pol_date_pairs$pol_date_id <- 
     paste(
-      pol_date_pairs$poly_id,
-      stringr::str_replace_all(pol_date_pairs$date, "-", "_"),
+      pol_date_pairs[[geom_id_col]],
+      stringr::str_replace_all(pol_date_pairs[[date_id_col]], "-", "_"),
       sep = "_"
     )
   
-  return(pol_date_pairs)
+  # Optional: Remove original columns only if they're not the standard names
+  if (geom_id_col != "geom_id" || date_id_col != "date") {
+    # Create standardized column names
+    pol_date_pairs$geom_id <- pol_date_pairs[[geom_id_col]]
+    pol_date_pairs$date <- pol_date_pairs[[date_id_col]]
+    
+    # Remove the original columns
+    pol_date_pairs <- pol_date_pairs |> 
+      dplyr::select(!dplyr::any_of(c(geom_id_col, date_id_col)))
+  }
   
+  return(pol_date_pairs)
 }
 
 
@@ -345,31 +373,15 @@ split_large_groups <- function(grouped_pol_pairs, max_polygons_per_group) {
 #' @param start An integer indicating the offset with respect to the polygon date. 
 #' @param hist_lags An integer indicating the number of years used to build the dynamic historical window. 
 #' @param align A character string indicating whether the sequence is left-, or right-aligned with respect to the polygon date. 
-#' @param bin_width An integer indicating the size of the bins into which the date sequence is divided. 
+#' @param time_step_size An integer indicating the size of the bins into which the date sequence is divided. 
 #' @param prop_cores A float number, between 0 and 1, indicating the proportion od available cores to use. 
 #' @param int_threshold A float number, between 0 and 1, indicating the minimum intersection threshold with the parquet dates needed for a historic sequence to be valid. 
 #' 
 #' @return TRUE if all inputs are valid; otherwise raises an error.   
-validate_inputs <- function(pol_date_pairs, conditions_list, window, start, hist_lags, align, bin_width, prop_cores, int_threshold) {
+validate_inputs <- function(pol_date_pairs, conditions_list, window, start, hist_lags, align, time_step_size, prop_cores, int_threshold) {
   
-  # Validate pol_date_pairs
-  if (!is.data.frame(pol_date_pairs)) {
-    stop("pol_date_pairs must be a data.frame")
-  }
-  
-  required_cols <- c("poly_id", "date", "pol_date_id")
-  missing_cols <- setdiff(required_cols, colnames(pol_date_pairs))
-  if (length(missing_cols) > 0) {
-    stop(paste("Missing required columns in pol_date_pairs:", paste(missing_cols, collapse = ", ")))
-  }
-  
-  # Validate dates
-  tryCatch({
-    as.Date(pol_date_pairs$date)
-  }, error = function(e) {
-    stop("Invalid date format in pol_date_pairs$date. Use YYYY-MM-DD format.")
-  })
-  
+ 
+
   # Validate conditions
   if (!is.list(conditions_list)) {
     stop("conditions must be a list")
@@ -382,6 +394,8 @@ validate_inputs <- function(pol_date_pairs, conditions_list, window, start, hist
   if (!file.exists(conditions_list$data_path)) {
     stop(paste("Data path does not exist:", conditions_list$data_path))
   }
+
+  if (!"geom_id" %in% names(conditions_list)){stop("The conditions list argument to identify geometries must be called geom_id.")}
   
   # Validate numeric parameters
   if (!is.numeric(window) || window <= 0 || window != floor(window)) {
@@ -396,12 +410,12 @@ validate_inputs <- function(pol_date_pairs, conditions_list, window, start, hist
     stop("hist_lags must be a non-negative integer")
   }
   
-  if (!is.numeric(bin_width) || bin_width <= 0 || bin_width != floor(bin_width)) {
-    stop("bin_width must be a positive integer")
+  if (!is.numeric(time_step_size) || time_step_size <= 0 || time_step_size != floor(time_step_size)) {
+    stop("time_step_size must be a positive integer")
   }
   
-  if (bin_width > window) {
-    stop("bin_width cannot be larger than window")
+  if (time_step_size > window) {
+    stop("time_step_size cannot be larger than window")
   }
   
   if (!is.numeric(prop_cores) || prop_cores <= 0 || prop_cores > 1) {
@@ -480,7 +494,7 @@ group_polygons_by_date <- function(pol_date_pairs, tolerance_days = 7) {
 #' @param width An integer indicating the size of the window sequence
 #' @param align An integer indicating how the window sequence is aligned with respect to the date
 #' @return A vector of dates 
-#' @example 
+#' @examples 
 #' \dontrun{
 #' historic_baseline <- relative_baseline("2000-01-01", hist_lags = 10, width = 10, align = "center")
 #' }
