@@ -17,7 +17,7 @@ pacman::p_load(terra, exactextractr, tidyverse, sf, data.table, arrow, fst, rstu
 # library(fst)
 
 # Paths
-MAIN_WD <- dirname(dirname(rstudioapi::getActiveDocumentContext()$path))
+MAIN_WD <- dirname(dirname(rstudioapi::getActiveDocumentContext()$path)) # Path to repo folder
 FUNCTIONS_PATH <- file.path(MAIN_WD, "R")
 BASE_PARQUET_PATH <- file.path(MAIN_WD, "shocks_example/data/base_parquet.parquet")
 POL_DATE_PATH <-  file.path(MAIN_WD, "shocks_example/data/ab_r2-r8_polygon_date_pairs.fst")
