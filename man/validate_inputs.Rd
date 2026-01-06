@@ -11,7 +11,7 @@ validate_inputs(
   start,
   hist_lags,
   align,
-  bin_width,
+  time_step_size,
   prop_cores,
   int_threshold
 )
@@ -29,7 +29,7 @@ validate_inputs(
 
 \item{align}{A character string indicating whether the sequence is left-, or right-aligned with respect to the polygon date.}
 
-\item{bin_width}{An integer indicating the size of the bins into which the date sequence is divided.}
+\item{time_step_size}{An integer indicating the size of the bins into which the date sequence is divided.}
 
 \item{prop_cores}{A float number, between 0 and 1, indicating the proportion od available cores to use.}
 

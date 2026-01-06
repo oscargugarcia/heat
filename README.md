@@ -289,6 +289,14 @@ The `shocks_warpper` function might deal with massive objects (e.g., parquet fil
 
 ### Example: estimating climate shocks with different historical window schemes
 ``` r
+# Define conditions list
+conditions = list(
+  data_path = file.path(...) # Path to wide-format parquet file produced by r2_e2,
+  geom_id = unique(poly_date_df$poly_id)  # Vector of geometry IDs (in the example, all polygons are used)
+  trans_type = c("polynomial"),           # Transformation type of interest
+  trans_var = c("degree_1", "degree_2")   # Transformation degrees of interest
+)
+
 # Estimate shocks with a dynamic window
 climate_shocks_dynamic <- shocks_wrapper(
   pol_date_pairs = poly_date_df,        # Dataframe with a geometry id column and a date column
@@ -309,7 +317,7 @@ climate_shocks_dynamic <- shocks_wrapper(
   prop_cores = 0.2,                     # Use 20% of avalaible workers
   date_tolerance_days = 10,             # Group polygons for which the date is at most 10 days apart
   max_group_size = 10,                  # Polygon groups should have at most 10 polygons
-  query = "temperate_shocks",           # Name to be assigned to the final output
+  query = "temperature_shocks",           # Name to be assigned to the final output
   output_path =  file.path("..."),      # Path were the final output should be saved
   error_log_path = file.path("...")     # Output were the error logs will be saved
 )
@@ -334,7 +342,7 @@ climate_shocks_dynamic <- shocks_wrapper(
   prop_cores = 0.2,                            
   date_tolerance_days = 10,                    
   max_group_size = 10,                         
-  query = "temperate_shocks",                  
+  query = "temperature_shocks",                  
   output_path =  file.path("..."),             
   error_log_path = file.path("...")            
 )
@@ -359,7 +367,7 @@ climate_shocks_dynamic <- shocks_wrapper(
   prop_cores = 0.2,                            
   date_tolerance_days = 10,                    
   max_group_size = 10,                         
-  query = "temperate_shocks",                  
+  query = "temperature_shocks",                  
   output_path =  file.path("..."),             
   error_log_path = file.path("...")            
 )
@@ -370,7 +378,6 @@ The `shocks_wrapper` function will create a parquet file with its results, which
 ## Validating the shocks measures
 The `heat` package also provides functions to quickly examine the output of the shocks procedure. The three core functions included are: 
 -   **`validate_global_summaries()`**: given the results datafarame as input, prints the summaries for each shocks measure, as well as NA counts.
--   **`validate_errors()`**: given the errors list as input, structures it for easier access and visualization of errors. If no errors were encountered, a NULL is returned.
 -   **`validate_measures_distributions()`**: given the results dataframe as input, plots the distribution for each measure. 
 
 

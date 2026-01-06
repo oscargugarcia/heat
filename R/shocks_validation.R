@@ -36,115 +36,117 @@ validate_global_summaries <- function(results_data) {
   }
 }
 
-#' Access and make the error list more accesible
-#' 
-#' @description This function accesses the error list returned by the shocks_wrapper function and creates a tidier error list
-#' 
-#' @param errors_list List of errors returned by the shocks_wrapper function
-#' 
-#' @return Null if no errors exist. Else, a list with the different types of errors encountered.
-validate_errors <- function(errors_list) {
+# #' Access and make the error list more accesible
+# #' 
+# #' @description This function accesses the error list returned by the shocks_wrapper function and creates a tidier error list
+# #' 
+# #' @param errors_list List of errors returned by the shocks_wrapper function
+# #' 
+# #' @return Null if no errors exist. Else, a list with the different types of errors encountered.
+# validate_errors <- function(errors_list) {
   
-  cat("=== ERROR ANALYSIS ===\n\n")
+#   cat("=== ERROR ANALYSIS ===\n\n")
   
-  if (is.null(errors_list) || length(errors_list) == 0) {
-    cat("No errors found!\n")
-    return(invisible(NULL))
-  }
+#   if (is.null(errors_list) || length(errors_list) == 0) {
+#     cat("No errors found!\n")
+#     return(invisible(NULL))
+#   }
   
-  # Initialize results list
-  flattened_errors <- list()
+#   # Initialize results list
+#   flattened_errors <- list()
   
-  # Process missing_dates errors
-  if ("missing_dates" %in% names(errors_list) && !is.null(errors_list$missing_dates)) {
+#   # Process missing_dates errors
+#   if ("missing_dates" %in% names(errors_list) && !is.null(errors_list$missing_dates)) {
     
-    cat("MISSING DATES ERRORS:\n")
-    cat("====================\n")
+#     cat("MISSING DATES ERRORS:\n")
+#     cat("====================\n")
     
-    missing_dates_flat <- data.frame(
-      error_type = character(0),
-      date = character(0),
-      polygon_id = character(0),
-      intersection_pct = numeric(0),
-      stringsAsFactors = FALSE
-    )
+#     missing_dates_flat <- data.frame(
+#       error_type = character(0),
+#       date = character(0),
+#       polygon_id = character(0),
+#       intersection_pct = numeric(0),
+#       stringsAsFactors = FALSE
+#     )
     
-    # Loop through each date in missing_dates
-    for (case in errors_list$missing_dates) {
-      date_info <- names(case)
+#     # Loop through each date in missing_dates
+#     for (case in errors_list$missing_dates) {
+#       date_info <- names(case)
       
-      # Extract polygons and intersection percentage
-      polygons <- case[[date_info]]$polygons
-      intersection_pct <- case[[date_info]]$intersection_pct
+#       # Extract polygons and intersection percentage
+#       polygons <- case[[date_info]]$polygons
+#       intersection_pct <- case[[date_info]]$intersection_pct
       
-      # Create rows for each polygon
-      for (i in seq_along(polygons)) {
-        missing_dates_flat <- rbind(missing_dates_flat, data.frame(
-          error_type = "missing_dates",
-          date = date_name,
-          polygon_id = polygons[i],
-          intersection_pct = intersection_pct,
-          stringsAsFactors = FALSE
-        ))
-      }
-    }
+#       # Create rows for each polygon
+#       for (i in seq_along(polygons)) {
+#         missing_dates_flat <- rbind(missing_dates_flat, data.frame(
+#           error_type = "missing_dates",
+#           date = date_name,
+#           polygon_id = polygons[i],
+#           intersection_pct = intersection_pct,
+#           stringsAsFactors = FALSE
+#         ))
+#       }
+#     }
     
-    # Print summary
-    if (nrow(missing_dates_flat) > 0) {
-      cat("Total affected polygon-date combinations:", nrow(missing_dates_flat), "\n")
-      cat("Unique dates with missing data:", length(unique(missing_dates_flat$date)), "\n")
-      cat("Unique polygons affected:", length(unique(missing_dates_flat$polygon_id)), "\n\n")
+#     # Print summary
+#     if (nrow(missing_dates_flat) > 0) {
+#       cat("Total affected polygon-date combinations:", nrow(missing_dates_flat), "\n")
+#       cat("Unique dates with missing data:", length(unique(missing_dates_flat$date)), "\n")
+#       cat("Unique polygons affected:", length(unique(missing_dates_flat$polygon_id)), "\n\n")
       
-      cat("Summary by date:\n")
-      print(table(missing_dates_flat$date))
-      cat("\n")
+#       cat("Summary by date:\n")
+#       print(table(missing_dates_flat$date))
+#       cat("\n")
       
-      cat("Summary by polygon:\n")
-      print(table(missing_dates_flat$polygon_id))
-      cat("\n")
+#       cat("Summary by polygon:\n")
+#       print(table(missing_dates_flat$polygon_id))
+#       cat("\n")
       
-      # Store in results
-      flattened_errors$missing_dates <- missing_dates_flat
-    } else {
-      cat("No missing dates errors found.\n\n")
-    }
-  }
+#       # Store in results
+#       flattened_errors$missing_dates <- missing_dates_flat
+#     } else {
+#       cat("No missing dates errors found.\n\n")
+#     }
+#   }
   
-  # Process na_in_data errors (if they exist)
-  if ("na_in_data" %in% names(errors_list) && !is.null(errors_list$na_in_data)) {
+#   # Process na_in_data errors (if they exist)
+#   if ("na_in_data" %in% names(errors_list) && !is.null(errors_list$na_in_data)) {
     
-    cat("NA IN DATA ERRORS:\n")
-    cat("==================\n")
-    
-    # Similar structure for na_in_data errors
-    # (This would be similar to missing_dates but for different error type)
-    cat("Found NA in data errors (structure similar to missing_dates)\n")
-    # Add processing logic here when you encounter this type of error
-  }
+#     cat("NA IN DATA ERRORS:\n")
+#     cat("==================\n")
+#     cat("Found NAs in the data for the following polygons and dates:")
+
+#   }
+
+#   # Process out-of-range dates
+#   if ("excluded_polygons" %in% names(errors_list) && !is.null(errors_list$excluded_polygons)){
+#      print("Excluded polygons: ")
+#   }
   
-  # Overall summary - FIXED
-  cat("=== OVERALL ERROR SUMMARY ===\n")
+#   # Overall summary - FIXED
+#   cat("=== OVERALL ERROR SUMMARY ===\n")
   
-  # Count errors properly
-  total_errors <- 0
-  if (length(flattened_errors) > 0) {
-    for (error_type in names(flattened_errors)) {
-      if (is.data.frame(flattened_errors[[error_type]])) {
-        total_errors <- total_errors + nrow(flattened_errors[[error_type]])
-      }
-    }
-  }
+#   # Count errors properly
+#   total_errors <- 0
+#   if (length(flattened_errors) > 0) {
+#     for (error_type in names(flattened_errors)) {
+#       if (is.data.frame(flattened_errors[[error_type]])) {
+#         total_errors <- total_errors + nrow(flattened_errors[[error_type]])
+#       }
+#     }
+#   }
   
-  cat("Total error records:", total_errors, "\n")
+#   cat("Total error records:", total_errors, "\n")
   
-  if (total_errors > 0) {
-    cat("\nReturning flattened error data for further analysis...\n")
-    return(flattened_errors)
-  } else {
-    cat("No errors to return.\n")
-    return(invisible(NULL))
-  }
-}
+#   if (total_errors > 0) {
+#     cat("\nReturning flattened error data for further analysis...\n")
+#     return(flattened_errors)
+#   } else {
+#     cat("No errors to return.\n")
+#     return(invisible(NULL))
+#   }
+# }
 
 #' Produce plots to visualize the distibution of each measure on the dataframe returned by the shocks_wrapper function
 #' 
@@ -212,10 +214,10 @@ validate_measure_distributions <- function(results_data, show_plots = TRUE) {
       labs(
         title = paste("Distribution of", measure_name),
         subtitle = paste(
-          "Mean:", stats_rounded$mean, 
-          "| Median:", stats_rounded$median,
-          "| 5%:", stats_rounded$q05,
-          "| 95%:", stats_rounded$q95
+          "Mean (red):", stats_rounded$mean, 
+          "| Median (green):", stats_rounded$median,
+          "| 5% (orange):", stats_rounded$q05,
+          "| 95% (orange):", stats_rounded$q95
         ),
         x = "Value",
         y = "Density"
@@ -237,16 +239,7 @@ validate_measure_distributions <- function(results_data, show_plots = TRUE) {
     if (show_plots) {
       print(p)
     }
-    
-    # Print numerical summary
-    cat("  Statistics for", measure_name, ":\n")
-    cat("    Mean:", stats_rounded$mean, "\n")
-    cat("    Median:", stats_rounded$median, "\n") 
-    cat("    5th percentile:", stats_rounded$q05, "\n")
-    cat("    95th percentile:", stats_rounded$q95, "\n")
-    cat("    Total observations:", length(measure_values), "\n")
-    cat("    Non-NA observations:", length(clean_values), "\n")
-    cat("    NA count:", sum(is.na(measure_values)), "\n\n")
+
   }
   
   cat("=== DISTRIBUTION ANALYSIS COMPLETE ===\n")

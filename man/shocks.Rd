@@ -14,7 +14,7 @@ shocks(
   start,
   hist_lags,
   align,
-  bin_width,
+  time_step_size,
   window_spec,
   prod_res,
   start_date,
@@ -53,7 +53,7 @@ in the parquet file with climate measures. Dates must be in date format (eg: "YY
 \item{align:}{A character string indicating whether the sequence is left- or right-aligned with respect to the polygon date. Inherited from shocks_wrapper.
 Left-alignment means that the sequence contains dates AFTER the polygon date. Right-alignment means that the sequence includes dates BEFORE the polygon date. Inherited from shocks_wrapper.}
 
-\item{bin_width:}{An integer indicating the number of days in each temporal bin that divides the date sequence. Inherited from shocks_wrapper.}
+\item{time_step_size:}{An integer indicating the number of days in each temporal bin that divides the date sequence. Inherited from shocks_wrapper.}
 
 \item{disjoint:}{A boolean indicating whether the bins are disjoint or overlapping. Inherited from shocks_wrapper.}
 

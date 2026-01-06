@@ -14,7 +14,7 @@ shocks_wrapper(
   start,
   hist_lags,
   align,
-  bin_width,
+  time_step_size,
   window_spec,
   disjoint,
   int_threshold,
@@ -33,7 +33,7 @@ shocks_wrapper(
 \item{pol_date_pairs}{A dataframe with unique geometry id and date pairs. The geometry IDs must correspond to those
 in the parquet file with climate measures. Dates must be in date format (eg: "YYYY-MM-DD").}
 
-\item{conditions_list}{A named list of conditions to query the parquet file with climate measures. The names conditions
+\item{conditions_list}{A named list of conditions to query the parquet file with climate measures. The named conditions
 should be:
 1. data_path: A character string with the path to the parquet file.
 2. geom_id: A vector of unique geometry IDs.
@@ -60,7 +60,7 @@ should be:
 \item{align:}{A character string indicating whether the sequence is left- or right-aligned with respect to the polygon date.
 Left-alignment means that the sequence contains dates AFTER the polygon date. Right-alingment means that the sequence includes dates BEFORE the polygon date.}
 
-\item{bin_width:}{An integer indicating the number of days in each temporal bin that divides the date sequence (e.g., 30 means each bin contains 30 days).}
+\item{time_step_size:}{An integer indicating the number of days in each temporal bin that divides the date sequence (e.g., 30 means each bin contains 30 days).}
 
 \item{disjoint:}{A boolean indicating whether the bins are disjoint or overlapping. Default is overlapping (disjoint = FALSE).}
 

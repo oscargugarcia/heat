@@ -96,7 +96,11 @@ shocks_wrapper <- function(
   # Add polygon-date unique ID for downstream processing
   pol_date_pairs <- create_pairs(pol_date_pairs, geom_id_col = geom_id_col_df, date_id_col = date_id_col_df) # Add renaming columns ids
   
-  
+  # Filter-out polygons not in conditions list
+  keep_geoms <- conditions_list[["geom_id"]]
+  pol_date_pairs <- pol_date_pairs %>% filter(geom_id %in% keep_geoms)
+  print(paste("Rows pol_date pairs:", nrow(pol_date_pairs)))
+
   # Validate inputs
   validate_inputs(pol_date_pairs, conditions_list, window, start, hist_lags, align, time_step_size, prop_cores, int_threshold)
   if(is.null(output_path) | is.null(error_log_path)){stop("Please provide an output and/or and error log path.")}
@@ -122,19 +126,22 @@ shocks_wrapper <- function(
   cat("If errors are found, the error log will be returned and written to", file.path(error_log_path), ".\n")
   
   # Make sure the data path is included in the conditions list
-  # More common way to check for non-empty/non-missing input
   if (is.null(conditions_list$data_path) || conditions_list$data_path == "") {
     stop("Please provide the path to the parquet file by including it in the conditions list with the name data_path")
   }
   
-  # Exclude polygon-interview dates for which we do not have climate data in the parquet file
+  # Exclude geometry-interview dates for which we do not have climate data in the parquet file and geometries not in the parquet
   tryCatch({
     # Load parquet
     p <- arrow::open_dataset(conditions_list$data_path)
   }, error = function(e) {
     stop("Could not open the parquet file: ", e$message)
   })
-  
+
+  geoms_in_parquet <- p %>% dplyr::select(dplyr::any_of(geom_id_col_parquet)) %>% pull(as_vector = TRUE) %>% unique()
+  pol_date_pairs <- pol_date_pairs %>% dplyr::filter(geom_id %in% geoms_in_parquet)
+  print(paste("Processing", nrow(pol_date_pairs), "geometry-date pairs."))
+
   
   if (prod_res == "daily"){
     climate_dates <- colnames(p)[grepl("^\\d{4}-\\d{2}-\\d{2}$", colnames(p))]
@@ -180,7 +187,7 @@ shocks_wrapper <- function(
     
     # Explicitly print dates not found in dataset
     print(paste("Dates excluded:", sort(unique(excluded_dates))))
-  }
+  } 
   
   # Check metadata columns are correct
   metadata_cols <- setdiff(colnames(p), climate_dates)

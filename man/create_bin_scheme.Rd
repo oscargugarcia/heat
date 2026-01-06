@@ -4,12 +4,12 @@
 \alias{create_bin_scheme}
 \title{Create bin structure}
 \usage{
-create_bin_scheme(window, bin_width, align, disjoint = FALSE)
+create_bin_scheme(window, time_step_size, align, disjoint = FALSE)
 }
 \arguments{
 \item{window}{Integer specifying the size of the sequence of dates.}
 
-\item{bin_width}{Integer indicating the size of each bin. Within the window. If window \%\% bin_width == 0, then n bins of size bin_width and 1 bin of size y (the remainder) are returned such that window = n * bin_width + y. Otherwise, n bins of size bin_Width are returned.}
+\item{time_step_size}{Integer indicating the size of each bin. Within the window. If window \%\% time_step_size == 0, then n bins of size time_step_size and 1 bin of size y (the remainder) are returned such that window = n * time_step_size + y. Otherwise, n bins of size time_step_size are returned.}
 
 \item{align}{Character indicating the alignment of the window with respect to the interview date.}
 

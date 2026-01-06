@@ -1,4 +1,4 @@
-install.packages(c("roxygen2", "devtools"))
+#install.packages(c("roxygen2", "devtools"))
 
 # Load roxygen2
 library(roxygen2)

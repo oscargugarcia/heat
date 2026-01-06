@@ -279,16 +279,24 @@ create_pairs <- function(pol_date_pairs, geom_id_col = "geom_id", date_id_col = 
     )
   
   # Optional: Remove original columns only if they're not the standard names
-  if (geom_id_col != "geom_id" || date_id_col != "date") {
+  if (geom_id_col != "geom_id") {
     # Create standardized column names
     pol_date_pairs$geom_id <- pol_date_pairs[[geom_id_col]]
+    
+    # Remove the original columns
+    pol_date_pairs <- pol_date_pairs |> 
+      dplyr::select(!dplyr::any_of(c(geom_id_col)))
+  }
+
+  if (date_id_col != "date") {
+    # Create standardized column names
     pol_date_pairs$date <- pol_date_pairs[[date_id_col]]
     
     # Remove the original columns
     pol_date_pairs <- pol_date_pairs |> 
-      dplyr::select(!dplyr::any_of(c(geom_id_col, date_id_col)))
+      dplyr::select(!dplyr::any_of(c(date_id_col)))
   }
-  
+
   return(pol_date_pairs)
 }
 
