@@ -371,7 +371,7 @@ The `shocks_wrapper` function will create a parquet file with its results, which
 The `heat` package also provides functions to quickly examine the output of the shocks procedure. The three core functions included are: 
 -   **`validate_global_summaries()`**: given the results datafarame as input, prints the summaries for each shocks measure, as well as NA counts.
 -   **`validate_errors()`**: given the errors list as input, structures it for easier access and visualization of errors. If no errors were encountered, a NULL is returned.
--   **`validate_measures_distributions()`**: given the results dataframes as input, plots the distribution for each measure. 
+-   **`validate_measures_distributions()`**: given the results dataframe as input, plots the distribution for each measure. 
 
 
 **Installation Note for Positron Users**: If you encounter progress bar issues in the Positron IDE, install the development version of `progress`:
