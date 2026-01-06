@@ -279,8 +279,8 @@ The `shocks_warpper` function might deal with massive objects (e.g., parquet fil
 
       1. data_path: A character string with the path to the parquet file.
       2. geom_id: A vector of unique geometry IDs indicating the geometries for which the shocks should be estimated.
-      3. trans_type: A character string indicating the type of transformations to be included (e.g., "polynomial").
-      4. trans_var: A character string indicating the degrees of the transformation to include (e.g, c("degree_2", "degree_3")).
+      3. trans_type: A character vector indicating the type of transformations to be included (e.g., "polynomial").
+      4. trans_var: A character vector indicating the degrees of the transformation to include (e.g., c("degree_2", "degree_3")).
       5. product_temp_res: A character indicating the temporal resolution of the product. Must be one of the following: "daily" or "monthly" ("yearly" not supported yet). 
 
 -   **`date_tolerance_days`**: some geometries can be grouped based on the proximity of their dates. Doing so helps reduce the number of date columns that need to be loaded per geometry group and, as such, the memory usage of the function. Setting a lower number means that groups are smaller in size, but might increases running times as more groups are produced. 
